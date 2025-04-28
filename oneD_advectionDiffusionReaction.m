@@ -3,17 +3,18 @@ clc; clear;
 
 xL = 0;
 xR = 1;
-mu = 0.11 % for Pe = 1;
+mu = 1 % for Pe = 1;
 c = 2;
-f = 0;
+
+a = 1;
 nelem = 9;
 
 L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 1;
-uR = 0;
+uL = sin(-a);
+uR = sin(a);
 
 nnode = nelem + 1;
 
@@ -32,31 +33,33 @@ dofs_free = setdiff(dofs_full, dofs_fixed);
 
 % solution array
 soln_full = zeros(totaldof, 1);
-soln_full1 = zeros(totaldof, 1);
 %% Solution
 
 Ke_diffusion = (mu / he) * [1, -1; -1, 1];
 Ke_advection = (c / 2) * [-1, 1; -1, 1];
 
 for iter = 1:9
-
     Kglobal = zeros(totaldof, totaldof);
     Fglobal = zeros(totaldof, 1);
-
-    Kglobal1 = zeros(totaldof, totaldof);
-    Fglobal1 = zeros(totaldof, 1);
 
     for elnum = 1:nelem
         % element connectivity
         elem_dofs = elem_dof_conn(elnum, :);
-        % profs solution
-        [Klocal1, Flocal1] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionReaction(elem_dofs, node_coords, c, mu, 1, f, soln_full, 1, 1.0);
-        Kglobal1(elem_dofs, elem_dofs) = Kglobal1(elem_dofs, elem_dofs) + Klocal1;
-        Fglobal1(elem_dofs, 1) = Fglobal1(elem_dofs, 1) + Flocal1;
         % my solution
         Klocal = Kglobal(elem_dofs, elem_dofs);
         Klocal = Klocal + Ke_diffusion + Ke_advection;
         Kglobal(elem_dofs, elem_dofs) = Klocal;
+
+        % for sine force term
+        xa = node_coords(elnum);
+        xb = node_coords(elnum + 1);
+
+        Flocal = zeros(2, 1);
+        Flocal(1) = ((xb - xa) / he) * (c * sin(a * xa) + mu * a * cos(a * xa));
+        Flocal(2) = ((xb - xa) / he) * (c * sin(a * xb) - mu * a * cos(a * xb));
+
+        Kglobal(elem_dofs, elem_dofs) = Kglobal(elem_dofs, elem_dofs) + Klocal;
+        Fglobal(elem_dofs, 1) = Fglobal(elem_dofs, 1) + Flocal;
     end
 
     if iter == 1
@@ -64,17 +67,9 @@ for iter = 1:9
         Fglobal = Fglobal - Kglobal(:, totaldof) * uR;
         Fglobal(1, 1) = uL;
         Fglobal(end, 1) = uR;
-
-        Fglobal1 = Fglobal1 - Kglobal1(:, 1) * uL;
-        Fglobal1 = Fglobal1 - Kglobal1(:, totaldof) * uR;
-        Fglobal1(1, 1) = uL;
-        Fglobal1(end, 1) = uR;
     else
         Fglobal(1, 1) = 0.0;
         Fglobal(end, 1) = 0.0;
-
-        Fglobal1(1, 1) = 0.0;
-        Fglobal1(end, 1) = 0.0;
     end
 
     rNorm = norm(Fglobal);
@@ -91,30 +86,11 @@ for iter = 1:9
     Kglobal(:, end) = zeros(totaldof, 1);
     Kglobal(end, end) = 1.0;
 
-    Kglobal1(1, :) = zeros(totaldof, 1);
-    Kglobal1(:, 1) = zeros(totaldof, 1);
-    Kglobal1(1, 1) = 1.0;
-
-    Kglobal1(end, :) = zeros(totaldof, 1);
-    Kglobal1(:, end) = zeros(totaldof, 1);
-    Kglobal1(end, end) = 1.0;
-
     soln_incr = Kglobal \ Fglobal;
-    soln_incr1 = Kglobal1 \ Fglobal1;
-
     soln_full = soln_full + soln_incr;
-    soln_full1 = soln_full1 + soln_incr1;
-
 end
 
-% subplot(1, 2, 1)
 plot(node_coords, soln_full, 'ro-');
 xlabel("Node Coordinates")
 ylabel("Values")
-title("1D steady state advection diffusion equation")
-
-% subplot(1, 2, 2)
-% plot(node_coords, soln_full1, 'ko-');
-% xlabel("Node Coordinates")
-% ylabel("Values")
-% title("1D Steady State Advection with functions")
+title("1D steady state advection diffusion equation with force term")
