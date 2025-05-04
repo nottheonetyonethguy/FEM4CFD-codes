@@ -3,7 +3,7 @@ clc; clear;
 
 xL = 0;
 xR = 1;
-mu = 0.11 % for Pe = 1;
+mu = 0.0222; % for Pe = 1;
 c = 2;
 f = 0;
 nelem = 9;
@@ -14,6 +14,8 @@ he = L / nelem;
 % boundary conditions
 uL = 1;
 uR = 0;
+
+Pe = (c * he) / (2 * mu);
 
 nnode = nelem + 1;
 
@@ -32,6 +34,8 @@ dofs_free = setdiff(dofs_full, dofs_fixed);
 
 % solution array
 soln_full = zeros(totaldof, 1);
+soln_full_pg = zeros(totaldof, 1);
+soln_full_supg = zeros(totaldof, 1);
 soln_full1 = zeros(totaldof, 1);
 %% Solution
 
@@ -40,11 +44,21 @@ Ke_advection = (c / 2) * [-1, 1; -1, 1];
 
 for iter = 1:9
 
-    Kglobal = zeros(totaldof, totaldof);
-    Fglobal = zeros(totaldof, 1);
+    Kglobal_g = zeros(totaldof, totaldof);
+    Kglobal_pg = zeros(totaldof, totaldof);
+    Kglobal_supg = zeros(totaldof, totaldof);
+    Fglobal_g = zeros(totaldof, 1);
+    Fglobal_pg = zeros(totaldof, 1);
+    Fglobal_supg = zeros(totaldof, 1);
 
     Kglobal1 = zeros(totaldof, totaldof);
     Fglobal1 = zeros(totaldof, 1);
+
+    Kglobal_g = galerkinApproximation(c, mu, he, elem_dof_conn, totaldof, nelem);
+
+    Kglobal_pg = petrovGalerkin(c, mu, he, Pe, elem_dof_conn, totaldof, nelem);
+
+    Kglobal_supg = supg(c, mu, he, Pe, elem_dof_conn, totaldof, nelem);
 
     for elnum = 1:nelem
         % element connectivity
@@ -53,36 +67,103 @@ for iter = 1:9
         [Klocal1, Flocal1] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionReaction(elem_dofs, node_coords, c, mu, 1, f, soln_full, 1, 1.0);
         Kglobal1(elem_dofs, elem_dofs) = Kglobal1(elem_dofs, elem_dofs) + Klocal1;
         Fglobal1(elem_dofs, 1) = Fglobal1(elem_dofs, 1) + Flocal1;
-        % my solution
-        Klocal = Kglobal(elem_dofs, elem_dofs);
-        Klocal = Klocal + Ke_diffusion + Ke_advection;
-        Kglobal(elem_dofs, elem_dofs) = Klocal;
     end
 
-    if iter == 1
-        Fglobal = Fglobal - Kglobal(:, 1) * uL;
-        Fglobal = Fglobal - Kglobal(:, totaldof) * uR;
-        Fglobal(1, 1) = uL;
-        Fglobal(end, 1) = uR;
+    Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
+    Fglobal_pg = forceVector(Kglobal_pg, Fglobal_pg, iter, uL, uR, totaldof);
+    Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
+    Fglobal1 = forceVector(Kglobal1, Fglobal1, iter, uL, uR, totaldof);
 
-        Fglobal1 = Fglobal1 - Kglobal1(:, 1) * uL;
-        Fglobal1 = Fglobal1 - Kglobal1(:, totaldof) * uR;
-        Fglobal1(1, 1) = uL;
-        Fglobal1(end, 1) = uR;
-    else
-        Fglobal(1, 1) = 0.0;
-        Fglobal(end, 1) = 0.0;
-
-        Fglobal1(1, 1) = 0.0;
-        Fglobal1(end, 1) = 0.0;
-    end
-
-    rNorm = norm(Fglobal);
+    rNorm = norm(Fglobal_g);
 
     if (rNorm < 1.0e-10)
         break;
     end
 
+    Kglobal_g = stiffnessMatrix(Kglobal_g, totaldof);
+    Kglobal_pg = stiffnessMatrix(Kglobal_pg, totaldof);
+    Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
+    Kglobal1 = stiffnessMatrix(Kglobal1, totaldof);
+
+    soln_incr = Kglobal_g \ Fglobal_g;
+    soln_incr_pg = Kglobal_pg \ Fglobal_pg;
+    soln_incr_supg = Kglobal_supg \ Fglobal_supg;
+    soln_incr1 = Kglobal1 \ Fglobal1;
+
+    soln_full = soln_full + soln_incr;
+    soln_full_pg = soln_full_pg + soln_incr_pg;
+    soln_full_supg = soln_full_supg + soln_incr_supg;
+    soln_full1 = soln_full1 + soln_incr1;
+
+end
+
+subplot(1, 2, 1)
+plot(node_coords, soln_full, 'ro-');
+hold on;
+plot(node_coords, soln_full_pg, 'k--');
+plot(node_coords, soln_full_supg, 'b*-');
+xlabel("Node Coordinates")
+ylabel("Values")
+title("1D steady state advection diffusion equation")
+legend("Galerkin Approximation", "Petrov Galerkin Approximation", "SUPG Stabilization")
+
+subplot(1, 2, 2)
+plot(node_coords, soln_full1, 'ko-');
+xlabel("Node Coordinates")
+ylabel("Values")
+title("1D Steady State Advection with functions")
+
+function Kglobal_g = galerkinApproximation(a, mu, h, elem_dof_conn, totaldof, nelem)
+    Kglobal_g = zeros(totaldof, totaldof);
+    K_advection = (a / 2) * [-1 1; -1 1];
+    K_diffusion = (mu / h) * [1 -1; -1 1];
+
+    for elnum = 1:nelem
+        elem_dofs = elem_dof_conn(elnum, :);
+        Klocal = Kglobal_g(elem_dofs, elem_dofs);
+        Klocal = Klocal + K_advection + K_diffusion;
+        Kglobal_g(elem_dofs, elem_dofs) = Klocal;
+    end
+
+end
+
+function Kglobal_pg = petrovGalerkin(a, mu, h, Pe, elem_dof_conn, totaldof, nelem)
+    alpha = coth(Pe) - 1 / abs(Pe);
+
+    Kglobal_pg = zeros(totaldof, totaldof);
+
+    K_advection = (a / 2) * [-1 1; -1 1] + ((a * alpha) / (2 * h)) * [1 -1; 1 -1];
+    K_diffusion = (mu / h) * [1 -1; -1 1];
+
+    for elnum = 1:nelem
+        elem_dofs = elem_dof_conn(elnum, :);
+        Klocal = Kglobal_pg(elem_dofs, elem_dofs);
+        Klocal = Klocal + K_advection + K_diffusion;
+        Kglobal_pg(elem_dofs, elem_dofs) = Klocal;
+    end
+
+end
+
+function Kglobal_supg = supg(a, mu, h, Pe, elem_dof_conn, totaldof, nelem)
+    alpha = coth(Pe) - 1 / abs(Pe);
+    tau = (h / (2 * a)) * alpha;
+
+    Kglobal_supg = zeros(totaldof, totaldof);
+
+    K_advection = (a / 2) * [-1 1; -1 1] + ((a * alpha) / (2 * h)) * [1 -1; 1 -1];
+    K_diffusion = (mu / h) * [1 -1; -1 1];
+    K_stabilization = ((tau * a * a) / h) * [1 -1; -1 1];
+
+    for elnum = 1:nelem
+        elem_dofs = elem_dof_conn(elnum, :);
+        Klocal = Kglobal_supg(elem_dofs, elem_dofs);
+        Klocal = Klocal + K_advection + K_diffusion + K_stabilization;
+        Kglobal_supg(elem_dofs, elem_dofs) = Klocal;
+    end
+
+end
+
+function Kglobal = stiffnessMatrix(Kglobal, totaldof)
     Kglobal(1, :) = zeros(totaldof, 1);
     Kglobal(:, 1) = zeros(totaldof, 1);
     Kglobal(1, 1) = 1.0;
@@ -90,31 +171,19 @@ for iter = 1:9
     Kglobal(end, :) = zeros(totaldof, 1);
     Kglobal(:, end) = zeros(totaldof, 1);
     Kglobal(end, end) = 1.0;
-
-    Kglobal1(1, :) = zeros(totaldof, 1);
-    Kglobal1(:, 1) = zeros(totaldof, 1);
-    Kglobal1(1, 1) = 1.0;
-
-    Kglobal1(end, :) = zeros(totaldof, 1);
-    Kglobal1(:, end) = zeros(totaldof, 1);
-    Kglobal1(end, end) = 1.0;
-
-    soln_incr = Kglobal \ Fglobal;
-    soln_incr1 = Kglobal1 \ Fglobal1;
-
-    soln_full = soln_full + soln_incr;
-    soln_full1 = soln_full1 + soln_incr1;
-
 end
 
-% subplot(1, 2, 1)
-plot(node_coords, soln_full, 'ro-');
-xlabel("Node Coordinates")
-ylabel("Values")
-title("1D steady state advection diffusion equation")
+function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
 
-% subplot(1, 2, 2)
-% plot(node_coords, soln_full1, 'ko-');
-% xlabel("Node Coordinates")
-% ylabel("Values")
-% title("1D Steady State Advection with functions")
+    if iter == 1
+        Fglobal = Fglobal - Kglobal(:, 1) * uL;
+        Fglobal = Fglobal - Kglobal(:, totaldof) * uR;
+        Fglobal(1, 1) = uL;
+        Fglobal(end, 1) = uR;
+    else
+        Fglobal(1, 1) = 0.0;
+        Fglobal(end, 1) = 0.0;
+
+    end
+
+end

@@ -55,10 +55,10 @@ function [Klocal, Flocal] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionRea
         end
 
         % advection
-        Klocal = Klocal + N * a * G * Jac * wt;
+        Klocal = Klocal + N * a * G * Jac * wt
 
         % diffusion
-        Klocal = Klocal + mu * G' * G * Jac * wt;
+        Klocal = Klocal + mu * G' * G * Jac * wt
 
         % Example 1
         if (fflag == 1)
@@ -87,7 +87,7 @@ function [Klocal, Flocal] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionRea
         xi = 1.0 / tanh(Pe) - 1.0 / Pe;
         tau = xi * he / (2.0 * a) * taufactor;
 
-        Klocal = Klocal + tau * a * G' * a * G * Jac * wt;
+        Klocal = Klocal + tau * a * G' * a * G * Jac * wt
 
         Flocal = Flocal + tau * a * G' * f * Jac * wt;
         Flocal = Flocal - tau * a * G' * a * du * Jac * wt;
@@ -110,7 +110,7 @@ function [Klocal, Flocal] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionRea
             aa = -a;
         end
         % 
-        Klocal = Klocal + aa * XXi * kadd * G' * G * Jac * wt;
-        Flocal = Flocal - aa * XXi * kadd * G' * du * Jac * wt;
+        % Klocal = Klocal + aa * XXi * kadd * G' * G * Jac * wt;
+        % Flocal = Flocal - aa * XXi * kadd * G' * du * Jac * wt;
 
     end
