@@ -1,19 +1,19 @@
 %% 1D steady state advection diffusion
-clc; clear;
+clear;
 
 xL = 0;
 xR = 1;
-mu = 0.0222; % for Pe = 1;
+mu = 0.0080;
 c = 2;
 f = 0;
-nelem = 9;
+nelem = 50;
 
 L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 1;
-uR = 0;
+uL = 0;
+uR = 1;
 
 Pe = (c * he) / (2 * mu);
 
@@ -97,15 +97,18 @@ for iter = 1:9
 
 end
 
+u_analytical = analyticalSolution(node_coords, c, mu, L);
+
 subplot(1, 2, 1)
-plot(node_coords, soln_full, 'ro-');
+plot(node_coords, soln_full, 'ro-', 'DisplayName', 'Galerkin');
 hold on;
-plot(node_coords, soln_full_pg, 'k--');
-plot(node_coords, soln_full_supg, 'b*-');
+plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
+plot(node_coords, soln_full_supg, 'b *-', 'DisplayName', 'SUPG');
+plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates")
 ylabel("Values")
 title("1D steady state advection diffusion equation")
-legend("Galerkin Approximation", "Petrov Galerkin Approximation", "SUPG Stabilization")
+legend('Location', 'best');
 
 subplot(1, 2, 2)
 plot(node_coords, soln_full1, 'ko-');
@@ -128,37 +131,75 @@ function Kglobal_g = galerkinApproximation(a, mu, h, elem_dof_conn, totaldof, ne
 end
 
 function Kglobal_pg = petrovGalerkin(a, mu, h, Pe, elem_dof_conn, totaldof, nelem)
-    alpha = coth(Pe) - 1 / abs(Pe);
-
     Kglobal_pg = zeros(totaldof, totaldof);
-
-    K_advection = (a / 2) * [-1 1; -1 1] + ((a * alpha) / (2 * h)) * [1 -1; 1 -1];
-    K_diffusion = (mu / h) * [1 -1; -1 1];
+    nGP = 2;
+    [gpts, gwts] = get_Gausspoints_1D(nGP);
+    % alpha = 1;
+    alpha = 1 / tanh(Pe) - 1 / Pe;
 
     for elnum = 1:nelem
         elem_dofs = elem_dof_conn(elnum, :);
-        Klocal = Kglobal_pg(elem_dofs, elem_dofs);
-        Klocal = Klocal + K_advection + K_diffusion;
-        Kglobal_pg(elem_dofs, elem_dofs) = Klocal;
+        Klocal = zeros(2, 2);
+
+        for gp = 1:nGP
+            xi = gpts(gp);
+            wt = gwts(gp);
+
+            N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+            dNdxi = [-0.5, 0.5];
+
+            Jac = h / 2;
+
+            dNdx = dNdxi / Jac;
+
+            % advection
+            Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
+            Klocal = Klocal + (alpha * a * dNdx' * dNdx) * Jac * wt;
+
+            % diffusion
+            Klocal = Klocal + mu * (dNdx' * dNdx) * Jac * wt;
+        end
+
+        Kglobal_pg(elem_dofs, elem_dofs) = Kglobal_pg(elem_dofs, elem_dofs) + Klocal;
     end
 
 end
 
 function Kglobal_supg = supg(a, mu, h, Pe, elem_dof_conn, totaldof, nelem)
-    alpha = coth(Pe) - 1 / abs(Pe);
-    tau = (h / (2 * a)) * alpha;
-
     Kglobal_supg = zeros(totaldof, totaldof);
 
-    K_advection = (a / 2) * [-1 1; -1 1] + ((a * alpha) / (2 * h)) * [1 -1; 1 -1];
-    K_diffusion = (mu / h) * [1 -1; -1 1];
-    K_stabilization = ((tau * a * a) / h) * [1 -1; -1 1];
+    nGP = 2;
+    [gpts, gwts] = get_Gausspoints_1D(nGP);
+
+    alpha = 1 / tanh(Pe) - 1 / Pe;
+    tau = (h / (2 * a)) * alpha;
 
     for elnum = 1:nelem
         elem_dofs = elem_dof_conn(elnum, :);
-        Klocal = Kglobal_supg(elem_dofs, elem_dofs);
-        Klocal = Klocal + K_advection + K_diffusion + K_stabilization;
-        Kglobal_supg(elem_dofs, elem_dofs) = Klocal;
+        Klocal = zeros(2, 2);
+
+        for gp = 1:nGP
+            xi = gpts(gp);
+            wt = gwts(gp);
+
+            N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+            dNdxi = [-0.5, 0.5];
+
+            Jac = h / 2;
+
+            dNdx = dNdxi / Jac;
+
+            % advection
+            Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
+
+            % diffusion
+            Klocal = Klocal + mu * (dNdx' * dNdx) * Jac * wt;
+
+            % stabilization
+            Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
+        end
+
+        Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal;
     end
 
 end
@@ -185,5 +226,12 @@ function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
         Fglobal(end, 1) = 0.0;
 
     end
+
+end
+
+function u_analytical = analyticalSolution(x, a, mu, L)
+    Pe = (a * L) / mu;
+
+    u_analytical = (exp(a * x * mu) - 1) / (exp(Pe) - 1);
 
 end
