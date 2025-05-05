@@ -3,7 +3,7 @@ clear;
 
 xL = 0;
 xR = 1;
-mu = 0.0080;
+mu = 2e-04;
 c = 2;
 f = 0;
 nelem = 50;
