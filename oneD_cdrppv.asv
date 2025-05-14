@@ -1,9 +1,9 @@
 %% 1D steady state advection diffusion
 clear;
 
-xL = 1;
-xR = 0;
-% mu = 0.0080;
+xL = 0;
+xR = 1;
+mu = 0.0080;
 c = 2;
 % f = 0;
 
@@ -16,11 +16,7 @@ he = L / nelem;
 uL = 0;
 uR = 1;
 
-Pe = 0.1;
-mu = (c * he) / (2 * Pe);
-
-Da = 10; % kL^2/mu
-s = Da * mu / L ^ 2;
+Pe = (c * he) / (2 * mu);
 
 nGP = 2;
 [gpts, gwts] = get_Gausspoints_1D(nGP);
@@ -72,7 +68,7 @@ for iter = 1:9
         Klocal = zeros(2, 2);
         Flocal = zeros(2, 1);
 
-        [Klocal, Flocal] = galerkinApproximation(c, mu, he, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
+        [Klocal, Flocal] = galerkinApproximation(c, mu, he, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
         Kglobal_g(elem_dofs, elem_dofs) = Kglobal_g(elem_dofs, elem_dofs) + Klocal; % galerkin approximation
         Fglobal_g(elem_dofs, 1) = Fglobal_g(elem_dofs, 1) + Flocal; % galerkin approximation
 
@@ -80,11 +76,11 @@ for iter = 1:9
         % Klocal_pg = petrovGalerkin(c, mu, he, alpha, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_pg, Klocal_pg, Flocal);
         % Kglobal_pg(elem_dofs, elem_dofs) = Kglobal_pg(elem_dofs, elem_dofs) + Klocal_pg;
 
-        [Klocal, Flocal] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal);
+        [Klocal, Flocal] = supg(c, mu, he, alpha, tau, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal);
         Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal;
         Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal; % supg approximation
 
-        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
+        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
         Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
         Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
         % profs solution
@@ -150,7 +146,7 @@ ylabel("Values")
 title("1D Steady State Advection with functions")
 legend('Location', 'best');
 
-function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal)
+function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal)
     Klocal_g = zeros(2, 2);
     Flocal_g = zeros(2, 1);
 
@@ -179,7 +175,7 @@ function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gw
         % advection
         Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
         % source
-        Klocal = Klocal + (s * N' * N) * Jac * wt;
+        % Klocal = Klocal + (s * N' * N) * Jac * wt;
         %diffusion
         Klocal = Klocal + (mu * dNdx' * dNdx) * Jac * wt;
         %force vector
@@ -230,7 +226,7 @@ function Klocal_pg = petrovGalerkin(a, mu, h, alpha, nGP, gpts, gwts, elem_dofs,
     %     Flocal_pg = Flocal_pg + Flocal;
 end
 
-function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal)
+function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal)
     Klocal_supg = zeros(2, 2);
     Flocal_supg = zeros(2, 1);
 
@@ -264,8 +260,8 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
         Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
         % source terms
         Klocal = Klocal + tau * a * s * (dNdx' * N) * Jac * wt ...
-            + tau * a * s * (N' * dNdx) * Jac * wt ...
-            + tau * s * s * (N' * N) * Jac * wt;
+                        + tau * a * s * (N' * dNdx) * Jac * wt ...
+                        + tau * s * s * (N' * N) * Jac *wt;
         % force vector
         res = a * du - f;
         Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
@@ -277,7 +273,7 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
 end
 
-function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
+function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
     Klocal_ppv = zeros(2, 2);
     Flocal_ppv = zeros(2, 1);
 
@@ -314,11 +310,10 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % res_ratio = (abs(a * du - f) / abs(du));
         % end
 
-        % chi = 2 / (abs(f) * h + 2 * abs(a));
-        chi = 2 / (abs(s) * h + 2 * abs(a));
+        chi = 2 / (abs(f) * h + 2 * abs(a));
 
         % kadd = max(0, ((abs(a - tau * a * f + tau * a * abs(f)) * h / 2) - (mu + tau * a * a) + (f + tau * f * abs(f) * h * h / 6)));
-        kadd = max(0, (a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6);
+        kadd = max(0, (a - tau * a * f + tau * a * abs(f)) * h / 2 - (mu + tau * a * a) + (f + tau * f * abs(f)) * h * h / 6);
 
         if a > 0.0
             res_ratio = -res_ratio;
@@ -326,7 +321,6 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
 
         % stabilization
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
-
         Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
     end
 
