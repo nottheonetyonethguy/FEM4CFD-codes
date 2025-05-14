@@ -5,8 +5,8 @@ xL = 0;
 xR = 1;
 mu = 0.0080;
 c = 2;
-f = 0;
-nelem = 10;
+f = 0; % changes
+nelem = 50;
 
 L = xR - xL;
 he = L / nelem;
