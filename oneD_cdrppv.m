@@ -14,14 +14,14 @@ L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 0;
-uR = 1;
+uL = 8;
+uR = 3;
 
-Pe = 0.1;
+Pe = 1;
 mu = (c * he) / (2 * Pe);
 
 Da = 10; % kL^2/mu or kL/c
-s = Da * c / L;
+s = Da * c / he;
 
 nGP = 2;
 [gpts, gwts] = get_Gausspoints_1D(nGP);
@@ -180,7 +180,7 @@ function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gw
         % advection
         Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
         % source
-        % Klocal = Klocal + (s * N' * N) * Jac * wt;
+        Klocal = Klocal + (s * N' * N) * Jac * wt;
         %diffusion
         Klocal = Klocal + (mu * dNdx' * dNdx) * Jac * wt;
         %force vector
@@ -259,7 +259,7 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
-        f = s;
+        f = 0;
 
         % stabilization
         Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
@@ -307,7 +307,7 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
-        f = s;
+        f = 0;
 
         % if f == 0
         res_ratio = abs(a);
@@ -315,11 +315,11 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % res_ratio = (abs(a * du - f) / abs(du));
         % end
 
-        chi = 2 / (abs(f) * h + 2 * abs(a));
-        % chi = 2 / (abs(s) * h + 2 * abs(a));
+        % chi = 2 / (abs(f) * h + 2 * abs(a));
+        chi = 2 / (abs(s) * h + 2 * abs(a));
 
-        kadd = max(0, ((abs(a - tau * a * f + tau * a * abs(f)) * h / 2) - (mu + tau * a * a) + (f + tau * f * abs(f) * h * h / 6)));
-        % kadd = max(0, (a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6);
+        % kadd = max(0, ((abs(a - tau * a * f + tau * a * abs(f)) * h / 2) - (mu + tau * a * a) + (f + tau * f * abs(f) * h * h / 6)));
+        kadd = max(0, (a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6);
 
         if a > 0.0
             res_ratio = -res_ratio;
