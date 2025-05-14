@@ -1,8 +1,9 @@
 %% 1D steady state advection diffusion
+close all;
 clear;
 
-xL = 1;
-xR = 0;
+xL = 0;
+xR = 1;
 % mu = 0.0080;
 c = 2;
 % f = 0;
@@ -19,8 +20,8 @@ uR = 1;
 Pe = 0.1;
 mu = (c * he) / (2 * Pe);
 
-Da = 10; % kL^2/mu
-s = Da * mu / L ^ 2;
+Da = 10; % kL^2/mu or kL/c
+s = Da * c / L;
 
 nGP = 2;
 [gpts, gwts] = get_Gausspoints_1D(nGP);
@@ -88,7 +89,7 @@ for iter = 1:9
         Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
         Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
         % profs solution
-        [Klocal1, Flocal1] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionReaction(elem_dofs, node_coords, c, mu, 1, 1, soln_full, 1, 1.0);
+        [Klocal1, Flocal1] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionReaction(elem_dofs, node_coords, c, mu, 1, s, soln_full, 1, 1.0);
         Kglobal1(elem_dofs, elem_dofs) = Kglobal1(elem_dofs, elem_dofs) + Klocal1;
         Fglobal1(elem_dofs, 1) = Fglobal1(elem_dofs, 1) + Flocal1;
     end
@@ -135,7 +136,7 @@ hold on;
 % plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
 plot(node_coords, soln_full_supg, 'b *-', 'DisplayName', 'SUPG');
 plot(node_coords, soln_full_ppv, 'g--', 'DisplayName', 'Discontinuity Correction');
-plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
+% plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates")
 ylabel("Values")
 title("1D steady state advection diffusion equation")
@@ -179,7 +180,7 @@ function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gw
         % advection
         Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
         % source
-        Klocal = Klocal + (s * N' * N) * Jac * wt;
+        % Klocal = Klocal + (s * N' * N) * Jac * wt;
         %diffusion
         Klocal = Klocal + (mu * dNdx' * dNdx) * Jac * wt;
         %force vector
@@ -258,14 +259,14 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
-        f = 0;
+        f = s;
 
         % stabilization
         Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
         % source terms
-        Klocal = Klocal + tau * a * s * (dNdx' * N) * Jac * wt ...
-            + tau * a * s * (N' * dNdx) * Jac * wt ...
-            + tau * s * s * (N' * N) * Jac * wt;
+        % Klocal = Klocal + tau * a * s * (dNdx' * N) * Jac * wt ...
+        %     + tau * a * s * (N' * dNdx) * Jac * wt ...
+        %     + tau * s * s * (N' * N) * Jac * wt;
         % force vector
         res = a * du - f;
         Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
@@ -306,7 +307,7 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
-        f = 0;
+        f = s;
 
         % if f == 0
         res_ratio = abs(a);
@@ -314,11 +315,11 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % res_ratio = (abs(a * du - f) / abs(du));
         % end
 
-        % chi = 2 / (abs(f) * h + 2 * abs(a));
-        chi = 2 / (abs(s) * h + 2 * abs(a));
+        chi = 2 / (abs(f) * h + 2 * abs(a));
+        % chi = 2 / (abs(s) * h + 2 * abs(a));
 
-        % kadd = max(0, ((abs(a - tau * a * f + tau * a * abs(f)) * h / 2) - (mu + tau * a * a) + (f + tau * f * abs(f) * h * h / 6)));
-        kadd = max(0, (a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6);
+        kadd = max(0, ((abs(a - tau * a * f + tau * a * abs(f)) * h / 2) - (mu + tau * a * a) + (f + tau * f * abs(f) * h * h / 6)));
+        % kadd = max(0, (a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6);
 
         if a > 0.0
             res_ratio = -res_ratio;
