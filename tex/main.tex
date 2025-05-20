@@ -1,5 +1,6 @@
 \documentclass[12pt, oneside]{article} 
 \usepackage{amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
+\usepackage{physics, amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
 
 \geometry{tmargin=.75in, bmargin=.75in, lmargin=.75in, rmargin = .75in}  
 
@@ -31,14 +32,12 @@
 
 \section{1D Advection Diffusion Equation}
 
-\subsection{Problem Statement}
-
-The advection diffusion reaction equation models the transport phenomena involving advection, diffusion, and reaction. Advection can be defined by the transport of the substance by bulk fluid motion, whereas diffusion can be defined by the spreading of the substance due to random molecular motion. Similarly, reaction is defined by the creation, destruction, or transformation of the substance. The advection diffusion reaction equation is used to various phenomena such as heat transfer in flowing fluids, or even chemical reactions in flowing media. This section is concerned with the steady state solution of the advection diffusion reaction equation. \\
+\subsection{Governing Equation}
+The governing equation of the advection diffusion reaction is of type (\ref{ge_1}). The equation models the transport phenomena including all three advection, diffusion and reaction. In the equation (\ref{adr_ex}), \textbf{F} and \textbf{G} represent the advection and diffusion coefficients, while the term \textbf{Q} represents either a reaction or source term.
 The advection diffusion equation is of the type
-   \begin{equation}
+   \begin{equation}\label{ge_1}
        \frac{\partial\Phi}{\partial t} + \frac{\partial{\boldsymbol{F_i}}}{\partial{x_i}} + \frac{\partial\boldsymbol{G_i}}{\partial{x_i}} + \boldsymbol{Q} = 0
    \end{equation}
-where in general, $\Phi$ is a basic dependent, vector variable, \textbf{Q} is a source or reaction term and flux matrices \text{F} and \textbf{G} are such that
     \begin{equation}\label{adr_ex}
           \begin{aligned}
 	    \boldsymbol{F_i} = \boldsymbol{F_i}(\boldsymbol{\Phi})\\
@@ -46,16 +45,16 @@ where in general, $\Phi$ is a basic dependent, vector variable, \textbf{Q} is a 
 	    \boldsymbol{Q} = \boldsymbol{Q}(x_i, \boldsymbol{\Phi})
           \end{aligned}
     \end{equation}
-    A linear reaction between the source term and the scalar variable is referred to as the reaction term. In (\ref{adr_ex}), $x_i$ and $i$ refer to Cartesian coordinates and the associated quantities and as a whole \ref{adr_ex} can be termed the transport eqation with $\boldsymbol{F}$ and $\boldsymbol{G}$ as the advection and diffusion coefficients, respectively. In scalar terms \ref{adr_ex} becomes,
+where in general, $\Phi$ is a basic dependent vector variable. A linear reaction between the source term and the scalar variable is referred to as the reaction term. In (\ref{adr_ex}), $x_i$ and $i$ refer to Cartesian coordinates and the associated quantities and as a whole.\\
+Thus, the equation in scalar terms becomes
 	\begin{equation}
 	   \begin{aligned}
-		\Phi \rightarrow \phi, \quad \quad \quad \quad \boldsymbol{Q} \rightarrow Q(x_i, \phi) = c \phi\\
-		\boldsymbol{F_i} \rightarrow F_i = U_i\phi, \quad \quad \quad \quad \boldsymbol{G_i} \rightarrow G_i = -k \frac{\partial\phi}{\partial t}
+		\Phi \rightarrow \phi, \quad \quad \quad \quad \boldsymbol{Q} \rightarrow Q(x_i, \phi) = s \phi\\
+		\boldsymbol{F_i} \rightarrow F_i = a\phi, \quad \quad \quad \quad \boldsymbol{G_i} \rightarrow G_i = -k \frac{\partial\phi}{\partial x}
 	    \end{aligned}
 	\end{equation}
-Thus, the equation becomes
-   \begin{equation}
-\frac{\partial\phi}{\partial t} + \frac{\partial{(U_i\phi)}}{\partial{x_i}} - \frac{\partial}{\partial{x_i}}(k \frac{\partial\phi}{\partial{x_i}}) + Q = 0
+    \begin{equation}\label{strform}
+	\frac{\partial\phi}{\partial t} + \frac{\partial{(a\phi)}}{\partial{x_i}} - \frac{\partial}{\partial{x_i}} \left( k \frac{\partial\phi}{\partial{x_i}}\right) + Q = 0
    \end{equation}
 Here, \textit{U} is the velocity field and $\phi$ is the scalar quantity being transported by this velocity. But, diffusion can also occur, and \textit{k} is the diffusion coefficient.\\
 A linear reaction term can be written associated, where \textit{c} is a scalar parameter.
@@ -63,5 +62,38 @@ A linear reaction term can be written associated, where \textit{c} is a scalar p
     Q = c\ \phi
 \]
 
+Here, \textit{a} is the velocity field and $\phi$ is the scalar quantity being transported by this velocity. But, diffusion can also occur, and \textit{k} is the diffusion coefficient. A linear reaction term can be associated, where \textit{c} is a scalar parameter. The equation represented by (\ref{strform}) is the strong form or the differential form of the advection diffusion governing equation. For the steady state solution, the first term becomes zero, leaving only the advection, diffusion and reaction terms.
+
+\subsection{Weak Form}
+The use of \ref{strform} requires computation of second derivatives to solve the problem, as such a \textit{weakened} form can be considered by solving the equation over a domain $\Omega$ using an integral, like
+\begin{equation}
+    \int_{\Omega}w \left( a\cdot \frac{\partial\phi}{\partial x} \right) \dd \Omega - \int_\Omega w \dv{x}\left( k\dv{\phi}{x} \right) + \int_\Omega w Q = 0
+\end{equation}
+where \textit{w} is an arbitrary weighting function, chosen such that $w=0$ on Dirichlet boundary condition, $\Gamma_D$. Also at the same Dirichlet boundary condition, the variable $\phi = \phi_D$. Assuming a source term, s is present, the right hand side of the above equation changes resulting in the weak form the governing equation.
+\begin{equation}
+    \int_{\Omega}w \left( a\cdot \nabla\phi \right) \dd \Omega - \int_\Omega w \nabla\cdot\left( k\nabla\phi \right) \dd\Omega + \int_\Omega w Q \dd\Omega = \int_\Omega w s \dd{\Omega}
+\end{equation}
+Noting that, $w = 0$ on $\Gamma_D$, using divergence theore, we get 
+\begin{equation} \label{weakform}
+    \begin{aligned}
+	\int_{\Omega}w \left( a\cdot \nabla\phi \right) \dd \Omega - \int_\Omega  \nabla w\cdot\left( k\nabla\phi \right) \dd\Omega + \int_\Omega w Q \dd\Omega = \int_\Omega w s \dd{\Omega} + \int_{\Gamma_N} w h \dd{\Gamma} 
+    \end{aligned}
+\end{equation}
+where $\Gamma_N$ and $h$ represent the Neumann boundary condition and the normal diffusive flux on the Neumann boundary condition.
+\subsection{Galerkin Approximation}
+The Galerkin approximation is a technique used to approximate numerical solutions of PDEs by replacing the infinite-dimensional spaces into finite dimensional spaces. The finite spaces are constructed using finite elements over a domain. Since spaces are finite-dimensional, the weighting function is a discrete weighting function $w_h$.
+
+Using Galerkin approximation, $\phi$ can be written
+\begin{equation}
+    \begin{aligned}
+	\phi(x) &= N_1(x)\phi_1 + N_2(x)\phi_2 + ... + N_n(x)\phi_n\\
+	\phi \left(x\right) &= \sum_{i=1}^{n_{el}} N_i \left(x\right) \phi_i	
+    \end{aligned}
+\end{equation}
+Here, $N_i$ is the shape function or basis function at that node, $n_{el}$ is the total number of elements and $\phi$ is the solution, also known as degrees of freedom (DOFs). For Galerkin approximation, the weighting function is equal to the shape function i.e., $w_i = N_i$. Now, equation \ref{weakform} becomes:
+\begin{equation}
+    
+\end{equation}
 \end{document}
+
 
