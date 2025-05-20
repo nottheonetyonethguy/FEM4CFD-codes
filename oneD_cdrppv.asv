@@ -18,7 +18,7 @@ uL = 8;
 uR = 3;
 
 Pe = 1;
-Da = 60; % s * he /c
+Da = 10; % s * he /c
 
 mu = (c * he) / (2 * Pe);
 s = Da * c / he;
@@ -248,24 +248,23 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
         dNdx = dNdxi / Jac;
         du = dNdx * u';
-        uh = N * u';
+
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
         
-        mod_test = a * dNdx' + abs(s) * N';
+        mod_test = a * dNdx'
 
         % stabilization
         % Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
         
         % reaction terms
-        % Klocal = Klocal + tau * a^2 * (dNdx' * dNdx) * Jac * wt ...
-                         % + tau * a * s * (dNdx' * N) * Jac * wt;
-        Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
+        Klocal = Klocal + tau * a^2 * (dNdx' * dNdx) * Jac * wt ...
+                         + tau * a * s * (dNdx' * N) * Jac * wt;
+
         % force vector
-        res = a * du + s * uh - f;
-        % Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
-        Flocal = Flocal + tau * (mod_test * f) * Jac * wt;
+        res = a * du - f;
+        Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
         Flocal = Flocal - tau * dNdx' * a ^ 2 * du * Jac * wt;
     end
 
@@ -309,22 +308,20 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         f = 0;
 
 	% if f == 0
-	    % res_ratio = abs(a);
+	%     res_ratio = abs(a);
 	% else
 	    res_ratio = (abs(a * du + s * uh - f) / (abs(du) + eps));
 	% end
 
-        chi = 2 / ((abs(s) * h) + (2 * abs(a)));
+        chi = 2 / (abs(s) * h + 2 * abs(a));
 
         % kadd = max((a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6, 0);
-        test = (abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
-               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6
         kadd = max((abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
-               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0)
+               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
 
-        if a > 0.0
-            res_ratio = -res_ratio;
-        end
+        % if a > 0.0
+        %     res_ratio = -res_ratio;
+        % end
 
         % stabilization
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
