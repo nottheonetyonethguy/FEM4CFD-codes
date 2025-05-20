@@ -14,10 +14,10 @@ L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 8;
-uR = 3;
+uL = 0;
+uR = 1;
 
-Pe = 1;
+Pe = 0.1;
 mu = (c * he) / (2 * Pe);
 
 Da = 10; % kL^2/mu or kL/c
@@ -179,7 +179,7 @@ function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gw
 
         % advection
         Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
-        % source
+        % reaction
         Klocal = Klocal + (s * N' * N) * Jac * wt;
         %diffusion
         Klocal = Klocal + (mu * dNdx' * dNdx) * Jac * wt;
@@ -263,10 +263,10 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
         % stabilization
         Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
-        % source terms
-        % Klocal = Klocal + tau * a * s * (dNdx' * N) * Jac * wt ...
-        %     + tau * a * s * (N' * dNdx) * Jac * wt ...
-        %     + tau * s * s * (N' * N) * Jac * wt;
+        % reaction terms
+        Klocal = Klocal + tau * a * s * (dNdx' * N) * Jac * wt ...
+            + tau * a * s * (N' * dNdx) * Jac * wt ...
+            + tau * s * s * (N' * N) * Jac * wt;
         % force vector
         res = a * du - f;
         Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
