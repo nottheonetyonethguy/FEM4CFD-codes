@@ -63,7 +63,7 @@ function [Klocal, Flocal] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionRea
 	% Example 1
 	if (fflag == 1)
 	    % f = 10.0 * exp(-5 * xc) - 4.0 * exp(-xc);
-	    f = f;
+	    f = 0;
 	end
 
 	% Hemker problem
