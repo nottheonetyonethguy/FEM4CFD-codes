@@ -4,7 +4,7 @@ clear;
 
 xL = 0;
 xR = 1;
-% mu = 0.0080;
+% mu = 1;
 c = 1;
 f = 0; % changes
 
@@ -14,12 +14,13 @@ L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 8;
-uR = 3;
+uL = 0;
+uR = 1;
 
-Pe = 1;
-Da = 60; % s * he /c
+Pe = 10;
+Da = 10; % s * he /c
 
+% c = Pe  * (2* mu) / he;
 mu = (c * he) / (2 * Pe);
 s = Da * c / he;
 
@@ -79,21 +80,15 @@ for iter = 1:9
         Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal;
         Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal; % supg approximation
 
-        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
+        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
         Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
         Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
-
-        % profs solution
-        [Klocal1, Flocal1] = calcStiffnessAndForce_1D2noded_AdvectionDiffusionReaction(elem_dofs, node_coords, c, mu, 1, s, soln_full, 1, 1.0);
-        Kglobal1(elem_dofs, elem_dofs) = Kglobal1(elem_dofs, elem_dofs) + Klocal1;
-        Fglobal1(elem_dofs, 1) = Fglobal1(elem_dofs, 1) + Flocal1;
     end
 
     Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
     % Fglobal_pg = forceVector(Kglobal_pg, Fglobal_pg, iter, uL, uR, totaldof);
     Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
     Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
-    Fglobal1 = forceVector(Kglobal1, Fglobal1, iter, uL, uR, totaldof);
 
     rNorm = norm(Fglobal_g);
 
@@ -104,22 +99,20 @@ for iter = 1:9
     Kglobal_g = stiffnessMatrix(Kglobal_g, totaldof);
     Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
     Kglobal_ppv = stiffnessMatrix(Kglobal_ppv, totaldof);
-    Kglobal1 = stiffnessMatrix(Kglobal1, totaldof);
 
     soln_incr = Kglobal_g \ Fglobal_g;
     soln_incr_supg = Kglobal_supg \ Fglobal_supg;
     soln_incr_ppv = Kglobal_ppv \ Fglobal_ppv;
-    soln_incr1 = Kglobal1 \ Fglobal1;
-
     soln_full = soln_full + soln_incr;
     soln_full_supg = soln_full_supg + soln_incr_supg;
     soln_full_ppv = soln_full_ppv + soln_incr_ppv;
-    % soln_full_ppv = max(0, soln_full_ppv);
-    soln_full1 = soln_full1 + soln_incr1;
 
 end
 
-u_analytical = analyticalSolution(node_coords, c, mu, L);
+
+
+
+u_analytical = analyticalSolution(node_coords, c, mu, s, L, uL, uR);
 
 f1 = figure;
 % f2 = figure;
@@ -129,7 +122,7 @@ hold on;
 % plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
 plot(node_coords, soln_full_supg, 'b *-', 'DisplayName', 'SUPG');
 plot(node_coords, soln_full_ppv, 'k-', 'LineWidth', 2, 'DisplayName', 'Discontinuity Correction');
-% plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
+plot(node_coords, u_analytical', 'r-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates")
 ylabel("Values")
 title("1D steady state advection diffusion equation")
@@ -186,44 +179,6 @@ function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gw
     Flocal_g = Flocal_g + Flocal;
 end
 
-function Klocal_pg = petrovGalerkin(a, mu, h, alpha, nGP, gpts, gwts, elem_dofs, soln_full_pg, node_coords, Klocal, Flocal)
-    Klocal_pg = zeros(2, 2);
-    %     Flocal_pg = zeros(2, 1);
-
-    n1 = elem_dofs(1);
-    n2 = elem_dofs(2);
-
-    x1 = node_coords(n1);
-    x2 = node_coords(n2);
-
-    u1 = soln_full_pg(n1);
-    u2 = soln_full_pg(n2);
-    u = [u1 u2];
-
-    for gp = 1:nGP
-        xi = gpts(gp);
-        wt = gwts(gp);
-
-        N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
-        dNdxi = [-0.5, 0.5];
-
-        Jac = h / 2;
-
-        dNdx = dNdxi / Jac;
-        du = dNdx * u';
-
-        x = N * [x1 x2]';
-        f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
-        % petrov galerkin advection
-        Klocal = Klocal + (alpha * a * dNdx' * dNdx) * Jac * wt;
-        % forcing term
-        % Flocal = Flocal + (alpha * a * dNdx' * dNdx) * Jac * wt;
-    end
-
-    Klocal_pg = Klocal_pg + Klocal;
-    %     Flocal_pg = Flocal_pg + Flocal;
-end
-
 function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal)
     Klocal_supg = zeros(2, 2);
     Flocal_supg = zeros(2, 1);
@@ -253,15 +208,15 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
-        
+
         mod_test = a * dNdx' + abs(s) * N';
 
         % stabilization
         % Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
-        
+
         % reaction terms
         % Klocal = Klocal + tau * a^2 * (dNdx' * dNdx) * Jac * wt ...
-                         % + tau * a * s * (dNdx' * N) * Jac * wt;
+        % + tau * a * s * (dNdx' * N) * Jac * wt;
         Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
         % force vector
         res = a * du + s * uh - f;
@@ -275,7 +230,7 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
 
 end
 
-function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
+function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
     Klocal_ppv = zeros(2, 2);
     Flocal_ppv = zeros(2, 1);
 
@@ -284,6 +239,8 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
 
     x1 = node_coords(n1);
     x2 = node_coords(n2);
+
+    soln_full_ppv = analyticalSolution(node_coords, a, mu, s, L, uL, uR);
 
     u1 = soln_full_ppv(n1);
     u2 = soln_full_ppv(n2);
@@ -302,32 +259,27 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
 
         dNdx = dNdxi / Jac;
 
-        du = dNdx * u';
-        uh = N * u';
+        du = dNdx * u'
+        uh = N * u'
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
 
-	% if f == 0
-	    % res_ratio = abs(a);
-	% else
-	    res_ratio = (abs( s * uh - f) / (abs(du) + eps));
-	% end
+        % if f == 0
+        % res_ratio = abs(a);
+        % else
+        % res_ratio = (abs(a * du + s * uh - f) / (abs(du) + eps));
+        res_ratio = ((abs(a) + (abs(s * uh -f)/(abs(du) + eps))));
+        % end
 
         chi = 2 / ((abs(s) * h) + (2 * abs(a)));
 
         % kadd = max((a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6, 0);
-        test = (abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
-               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6;
-        kadd = max((abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
-               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
-        
-        % kadd = max((abs(a)* h/2) - (mu) + (s/6 * h^2), 0);
-
-        % if a > 0.0
-        %     res_ratio = -res_ratio;
-        % end
+        % test = (abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
+            % - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6;
+        kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
+            - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
 
         % stabilization
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
@@ -365,9 +317,20 @@ function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
 
 end
 
-function u_analytical = analyticalSolution(x, a, mu, L)
-    Pe = (a * L) / mu;
+function u_analytical = analyticalSolution(x, a, mu, s, L, uL, uR)
+    % Pe = (a * L) / mu;
+    f = 0;
+    A = uL;
+    B = uR;
 
-    u_analytical = (exp(a * x * mu) - 1) / (exp(Pe) - 1);
+    m1 = (-a + sqrt(a ^ 2 + 4 * mu * s)) / (-2 * mu);
+
+    m2 = (-a - sqrt(a ^ 2 + 4 * mu * s)) / (-2 * mu);
+
+    C1 = (A * exp(m2 * L) - ((f / s) * (exp(m2 * L) - 1)) - B) / (exp(m2 * L) - exp(m1 * L));
+    C2 = A - C1 - (f / s);
+
+    % u_analytical = (exp(a * x * mu) - 1) / (exp(Pe) - 1);
+    u_analytical = C1 * exp(m1 * x) + C2 * exp(m2 * x) + (f / s);
 
 end
