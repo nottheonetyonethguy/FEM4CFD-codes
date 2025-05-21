@@ -1,6 +1,8 @@
 \documentclass[12pt, oneside]{article} 
 \usepackage{amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
 \usepackage{physics, amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
+\usepackage{graphicx, caption, subcaption}
+\usepackage{matlab-prettifier}
 
 \geometry{tmargin=.75in, bmargin=.75in, lmargin=.75in, rmargin = .75in}  
 
@@ -91,9 +93,198 @@ Using Galerkin approximation, $\phi$ can be written
     \end{aligned}
 \end{equation}
 Here, $N_i$ is the shape function or basis function at that node, $n_{el}$ is the total number of elements and $\phi$ is the solution, also known as degrees of freedom (DOFs). For Galerkin approximation, the weighting function is equal to the shape function i.e., $w_i = N_i$. Now, equation \ref{weakform} becomes:
-\begin{equation}
-
+\begin{equation} \label{galapprox}
+    \begin{aligned}
+	\int_\Omega a \left( N_a \frac{\partial N_b}{\partial N_t} \right) \dd \Omega + \int_\Omega k \left( \frac{\partial N_a}{\partial t} \frac{\partial N_b}{\partial t} \right) \dd \Omega \int_\Omega Q \left( N_a \cdot N_b \right) \dd \Omega = \int_\Omega f N_a \dd \Omega + \int_\Gamma h N_a \dd \Gamma
+    \end{aligned}
 \end{equation}
+Here, in (\ref{galapprox}) $f$ represents the source term and for problems with only Dirichlet boundary conditions, the second term on right hand vanishes, effectively giving us the weak form of the Galerkin approximatin of the ADR equation. \\
+Solving the equation for cell Pe = 0.1, where Pe is defined by $ Pe = \frac{a \cdot he}{2k}$ with 10 linear elements, with the domain length 1 and (0, 1) Dirichlet boundary conditions ont he left and the right of the domain respectively. The results of the comparison of the Galerkin solution with the analytical solution \ref{analsol} without a source or a reaction term can be seen in Figure \ref{fig-gal-1}.\\
+\subsubsection{Implementation}
+The following section explores the implementation of the Galerkin approximation for the one dimensional advection diffusion equation in MATLAB.
+\begin{enumerate}
+    \item Initialization:
+	\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+	    %% 1D steady state advection diffusion
+clear;
+clc;
+close all;
+
+xL = 0;
+xR = 1;
+nelem = 10;
+
+L = xR - xL;
+he = L / nelem;
+
+% boundary conditions
+uL = 0;
+uR = 1;
+
+Pe = 0.1;
+mu = 1;
+c = Pe * (2 * mu) / he;
+f = 0;
+
+nGP = 2;
+[gpts, gwts] = get_Gausspoints_1D(nGP);
+
+nnode = nelem + 1;
+
+ndof = 1;
+
+totaldof = nnode * ndof;
+
+node_coords = linspace(xL, xR, nnode);
+
+elem_node_conn = [1:nelem; 2:nnode]';
+elem_dof_conn = elem_node_conn;
+
+dofs_full = 1:totaldof;
+dofs_fixed = [1, totaldof];
+dofs_free = setdiff(dofs_full, dofs_fixed);
+
+% solution array
+soln_full = zeros(totaldof, 1);
+	
+	\end{lstlisting}
+	The first section of the code is dedicated for the initial boundary values, domain properties and initializing the solution arrays for calculation. $he$ is the elemental length, while $L$ is the length of the domain. $xL$ and $xR$ are the left and the right boundaries of the domain and $nelem$ is the number of elements the domain will be discretized into. $totaldof$ is the total degrees of freedom of the entire system and $soln_full$ is the final solution array i.e., $\phi(x)$. This solution utilizes Gaussian points for numerical integration over an element. For the purpose of this solution, two Gausspoints ($nGP$) are considered (linear element) with $xi$ and $wt$ being $\pm \frac{1}{\sqrt(3)}$ and 1.0, respectively. 
+	\item Processing:
+	   \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+%% Processing
+for iter = 1:9
+
+    Kglobal_g = zeros(totaldof, totaldof);
+    Fglobal_g = zeros(totaldof, 1);
+
+    for elnum = 1:nelem
+	elem_dofs = elem_dof_conn(elnum, :);
+	Klocal = zeros(2, 2);
+	Flocal = zeros(2, 1);
+	
+	%% Galerkin Approximation
+	[Klocal, Flocal] = galerkinApproximation(c, mu, he, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
+
+	Kglobal_g(elem_dofs, elem_dofs) = Kglobal_g(elem_dofs, elem_dofs) + Klocal;
+	Fglobal_g(elem_dofs, 1) = Fglobal_g(elem_dofs, 1) + Flocal;
+    end
+    
+    Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
+
+    rNorm = norm(Fglobal_g);
+
+    if (rNorm < 1.0e-10)
+	break;
+    end
+
+    Kglobal_g = stiffnessMatrix(Kglobal_g, totaldof);
+
+    soln_incr = Kglobal_g \ Fglobal_g;
+    soln_full = soln_full + soln_incr;
+
+end
+
+	   \end{lstlisting}
+	   This solution uses an iterative solver to solve the advection diffusion equation. The solver iteratves over the number of elements and calls the function \textit{galerkinApproximation} on each iteration to calculate the terms of the global stiffness matrix. The global stiffness matrix is a combination of the advection, diffusion and reaction contribution to the global matrix. These are:
+	   \begin{equation}
+	       K_{ad} =   \frac{a}{2} \begin{bmatrix}
+			-1 & 1\\
+			-1 & 1
+	          \end{bmatrix}\hfill,
+	       K_{diff} =   \frac{k}{he} \begin{bmatrix}
+			1 & -1\\
+			-1 & 1
+	          \end{bmatrix}\hfill,
+		  K_{re} =   \frac{s \cdot {he}}{6} \begin{bmatrix}
+			2 & 1\\
+			1 & 2
+	          \end{bmatrix}\hfill
+	   \end{equation}
+	    \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+%% Galerkin Approximation function
+function [Klocal, Flocal] = galerkinApproximation(a, mu, h, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal)
+    Klocal_g = zeros(2, 2);
+    Flocal_g = zeror(2, 1);
+
+    n1 = elem_dofs(n1);
+    n2 = elem_dofs(n2);
+
+    u1 = soln_full(n1);
+    u2 = soln_full(n2);
+    u = [u1 u2];
+    for gp = 1:nGP
+	   xi = gpts(gp);
+	   wt = gwts(gp);
+	   N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	   dNdxi = [-0.5, 0.5];
+	   Jac = h / 2;
+	   dNdx = dNdxi / Jac;
+	   du = dNdx * u';
+	   x = N * [x1 x2];
+
+	   % advection
+	   Klocal = Klocal + (a * N' * dNdx) * Jac * wt;
+	   % reaction
+	   Klocal = Klocal + (s * N' * N) * Jac * wt;
+	   % diffusion
+	   Klocal = Klocal + (mu * dNdx' * dNdx) * Jac * wt;
+
+	   % force vector
+	   Flocal = Flocal + N' * f * Jac * wt;
+    end
+
+	   Klocal_g = Klocal_g + Klocal;
+	   Flocal_g = Flocal_g + Flocal;
+end
+       \end{lstlisting}
+	      \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+%% Force vector assembly
+function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
+
+       if iter == 1
+           Fglobal = Fglobal - Kglobal(:, 1) * uL;
+           Fglobal = Fglobal - Kglobal(:, totaldof) * uR;
+	   Fglobal(1, 1) = uL;
+	   Fglobal(end, 1) = uR;
+       else
+	   Fglobal(1, 1) = 0.0;
+	   Fglobal(end, 1) = 0.0;
+       end
+
+end
+   \end{lstlisting}
+	      \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+%% Stiffness Matrix Assembly 
+function Kglobal = stiffnessMatrix(Kglobal, totaldof)
+   Kglobal(1, :) = zeros(totaldof, 1);
+   Kglobal(:, 1) = zeros(totaldof, 1);
+   Kglobal(1, 1) = 1.0;
+
+   Kglobal(end, :) = zeros(totaldof, 1);
+   Kglobal(:, end) = zeros(totaldof, 1);
+   Kglobal(end, end) = 1.0;
+end
+\end{lstlisting}
+\end{enumerate}
+It can be seen the Galerkin approximation for the one dimensional advection diffusion equation closely follows the analytical solution. However, at higher Peclet numbes, or due to a finer mesh, spurious oscillations are introduced, as seen in Figure \ref{fig-gal-2}.
+\begin{equation} \label{analsol}
+    \phi(x) =  \frac{e^{a x k} -1}{e^{Pe} - 1} 
+\end{equation} 
+\begin{figure}[!h]
+    \centering
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{pe01_no_source.jpg}
+	\caption{At Pe = 0.1, L = 1, number of elements = 10, (0, 1) Dirichlet BCs}
+	\label{fig-gal-1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{pe10_no_source.jpg}
+	\caption{At Pe = 10, L = 1, number of elements = 10, (0, 1) Dirichlet BCs}
+	\label{fig-gal-2}
+    \end{subfigure}
+    \caption{Galerkin Approximation solution}
+\end{figure}
 \end{document}
 
 

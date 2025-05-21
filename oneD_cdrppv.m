@@ -1,10 +1,9 @@
 %% 1D steady state advection diffusion
-close all;
+% close all;
 clear;
 
 xL = 0;
 xR = 1;
-% mu = 0.0080;
 c = 1;
 f = 0; % changes
 
@@ -263,6 +262,7 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
         % Klocal = Klocal + tau * a^2 * (dNdx' * dNdx) * Jac * wt ...
                          % + tau * a * s * (dNdx' * N) * Jac * wt;
         Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
+        
         % force vector
         res = a * du + s * uh - f;
         % Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
@@ -309,25 +309,16 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
 
-	% if f == 0
-	    % res_ratio = abs(a);
-	% else
 	    res_ratio = (abs( s * uh - f) / (abs(du) + eps));
-	% end
 
         chi = 2 / ((abs(s) * h) + (2 * abs(a)));
 
-        % kadd = max((a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6, 0);
-        test = (abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
-               - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6;
         kadd = max((abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
                - (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
         
         % kadd = max((abs(a)* h/2) - (mu) + (s/6 * h^2), 0);
 
-        % if a > 0.0
-        %     res_ratio = -res_ratio;
-        % end
+
 
         % stabilization
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;

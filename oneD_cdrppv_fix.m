@@ -1,5 +1,5 @@
 %% 1D steady state advection diffusion
-close all;
+% close all;
 clear;
 
 xL = 0;
@@ -14,11 +14,11 @@ L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 0;
-uR = 1;
+uL = 8;
+uR = 3;
 
-Pe = 10;
-Da = 10; % s * he /c
+Pe = 1;
+Da = 60; % s * he /c
 
 % c = Pe  * (2* mu) / he;
 mu = (c * he) / (2 * Pe);
