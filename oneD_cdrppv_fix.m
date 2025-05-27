@@ -139,6 +139,7 @@ for iter = 1:9
         Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
         Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
     end
+
     Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
     Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
     rNorm = norm(Fglobal_g);
@@ -306,9 +307,11 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
+
         if uh < 1e-3
             uh = 0;
         end
+
         % if f == 0
         % res_ratio = abs(a);
         % else
@@ -322,20 +325,18 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % test = (abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
         % - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6;
         kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
-        - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
+            - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
 
         % stabilization
         mod_test = a * dNdx' + abs(s) * N';
         Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
-        % % Check if solution is negative
         % if uh < 0
         %     uh = 0;
         %     res_ratio = ((abs(a) + (abs(s * uh - f) / (abs(du) + eps))));
         %     chi = 2 / ((abs(s) * h) + (2 * abs(a)));
         %     kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
         %         - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
-        % 
-        %     % Add nonlinear PPV stabilization only if solution is negative
+        %
         %     Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
         %     Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
         % end
