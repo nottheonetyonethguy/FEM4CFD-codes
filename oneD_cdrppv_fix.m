@@ -8,7 +8,7 @@ xR = 1;
 c = 1;
 f = 0; % changes
 
-nelem = 10;
+nelem = 50;
 
 L = xR - xL;
 he = L / nelem;
@@ -75,8 +75,8 @@ for iter = 1:9
         [Klocal, Flocal] = galerkinApproximation(c, mu, he, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
         Kglobal_g(elem_dofs, elem_dofs) = Kglobal_g(elem_dofs, elem_dofs) + Klocal; % galerkin approximation
         Fglobal_g(elem_dofs, 1) = Fglobal_g(elem_dofs, 1) + Flocal; % galerkin approximation
-
-        [Klocal, Flocal] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal);
+        Klocal_supg = Klocal; Flocal_supg = Flocal;
+        [Klocal_supg, Flocal_supg] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal_supg, Flocal_supg);
         Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal;
         Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal; % supg approximation
 
@@ -108,9 +108,6 @@ for iter = 1:9
     soln_full_ppv = soln_full_ppv + soln_incr_ppv;
 
 end
-
-
-
 
 u_analytical = analyticalSolution(node_coords, c, mu, s, L, uL, uR);
 
@@ -209,7 +206,8 @@ function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, g
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
 
-        mod_test = a * dNdx' + abs(s) * N';
+        % mod_test = a * dNdx' + abs(s) * N';
+        mod_test = a * dNdx';
 
         % stabilization
         % Klocal = Klocal + tau * a ^ 2 * (dNdx' * dNdx) * Jac * wt;
@@ -240,7 +238,7 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
     x1 = node_coords(n1);
     x2 = node_coords(n2);
 
-    soln_full_ppv = analyticalSolution(node_coords, a, mu, s, L, uL, uR);
+    % soln_full_ppv = analyticalSolution(node_coords, a, mu, s, L, uL, uR);
 
     u1 = soln_full_ppv(n1);
     u2 = soln_full_ppv(n2);
@@ -270,18 +268,21 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % res_ratio = abs(a);
         % else
         % res_ratio = (abs(a * du + s * uh - f) / (abs(du) + eps));
-        res_ratio = ((abs(a) + (abs(s * uh -f)/(abs(du) + eps))));
+        res_ratio = ((abs(a) + (abs(s * uh -f) / (abs(du) + eps))));
         % end
 
         chi = 2 / ((abs(s) * h) + (2 * abs(a)));
 
         % kadd = max((a - tau * a * s + tau * a * abs(s)) * h / 2 - (mu + tau * a * a) + (s + tau * s * abs(s)) * h * h / 6, 0);
         % test = (abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
-            % - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6;
+        % - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6;
         kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
             - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
 
         % stabilization
+        mod_test = a * dNdx' + abs(s) * N';
+        Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
+
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
 
         Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
@@ -323,11 +324,16 @@ function u_analytical = analyticalSolution(x, a, mu, s, L, uL, uR)
     A = uL;
     B = uR;
 
-    m1 = (-a + sqrt(a ^ 2 + 4 * mu * s)) / (-2 * mu);
+    % jaiman paper
+    m1 = (a + sqrt(a ^ 2 + 4 * mu * s)) / (2 * mu);
 
-    m2 = (-a - sqrt(a ^ 2 + 4 * mu * s)) / (-2 * mu);
+    m2 = (a - sqrt(a ^ 2 + 4 * mu * s)) / (2 * mu);
 
-    C1 = (A * exp(m2 * L) - ((f / s) * (exp(m2 * L) - 1)) - B) / (exp(m2 * L) - exp(m1 * L));
+    num = A * exp(m2 * L) - ((f / s) * (exp(m2 * L) - 1)) - B;
+    denum = exp(m2 * L) - exp(m1 * L);
+
+    % C1 = (A * exp(m2 * L) - ((f / s) * (exp(m2 * L) - 1)) - B) / (exp(m2 * L) - exp(m1 * L));
+    C1 = num / denum;
     C2 = A - C1 - (f / s);
 
     % u_analytical = (exp(a * x * mu) - 1) / (exp(Pe) - 1);
