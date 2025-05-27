@@ -8,17 +8,17 @@ xR = 1;
 c = 1;
 f = 0; % changes
 
-nelem = 50;
+nelem = 10;
 
 L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 8;
-uR = 3;
+uL = 0;
+uR = 1;
 
-Pe = 1;
-Da = 60; % s * he /c
+Pe = 10;
+Da = 10; % s * he /c
 
 % c = Pe  * (2* mu) / he;
 mu = (c * he) / (2 * Pe);
@@ -51,18 +51,20 @@ soln_full_supg = zeros(totaldof, 1);
 soln_full_ppv = zeros(totaldof, 1);
 soln_full1 = zeros(totaldof, 1);
 
+counter = 1;
+
 %% Solution
 for iter = 1:9
 
     Kglobal_g = zeros(totaldof, totaldof);
     Kglobal_pg = zeros(totaldof, totaldof);
     Kglobal_supg = zeros(totaldof, totaldof);
-    Kglobal_ppv = zeros(totaldof, totaldof);
+    % Kglobal_ppv = zeros(totaldof, totaldof);
 
     Fglobal_g = zeros(totaldof, 1);
     Fglobal_pg = zeros(totaldof, 1);
     Fglobal_supg = zeros(totaldof, 1);
-    Fglobal_ppv = zeros(totaldof, 1);
+    % Fglobal_ppv = zeros(totaldof, 1);
 
     Kglobal1 = zeros(totaldof, totaldof);
     Fglobal1 = zeros(totaldof, 1);
@@ -75,20 +77,29 @@ for iter = 1:9
         [Klocal, Flocal] = galerkinApproximation(c, mu, he, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
         Kglobal_g(elem_dofs, elem_dofs) = Kglobal_g(elem_dofs, elem_dofs) + Klocal; % galerkin approximation
         Fglobal_g(elem_dofs, 1) = Fglobal_g(elem_dofs, 1) + Flocal; % galerkin approximation
-        Klocal_supg = Klocal; Flocal_supg = Flocal;
-        [Klocal_supg, Flocal_supg] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal_supg, Flocal_supg);
-        Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal;
-        Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal; % supg approximation
+        % Klocal_supg = Klocal; Flocal_supg = Flocal;
+        [Klocal_supg, Flocal_supg] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal);
+        Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal_supg;
+        Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal_supg; % supg approximation
 
-        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
-        Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
-        Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
+        % Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
+        % Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
+        % counter
+        % anss = Kglobal_supg \ Fglobal_supg
+        % anss1 = Klocal_supg \ Flocal_supg
+        % anss(isnan(anss)) = 0;
+        % norm(anss)
+
+        % [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
+        % Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
+        % Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
+        counter = counter + 1;
     end
 
     Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
     % Fglobal_pg = forceVector(Kglobal_pg, Fglobal_pg, iter, uL, uR, totaldof);
     Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
-    Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
+    % Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
 
     rNorm = norm(Fglobal_g);
 
@@ -98,15 +109,47 @@ for iter = 1:9
 
     Kglobal_g = stiffnessMatrix(Kglobal_g, totaldof);
     Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
-    Kglobal_ppv = stiffnessMatrix(Kglobal_ppv, totaldof);
+    % Kglobal_ppv = stiffnessMatrix(Kglobal_ppv, totaldof);
 
     soln_incr = Kglobal_g \ Fglobal_g;
     soln_incr_supg = Kglobal_supg \ Fglobal_supg;
-    soln_incr_ppv = Kglobal_ppv \ Fglobal_ppv;
+    % soln_incr_ppv = Kglobal_ppv \ Fglobal_ppv;
     soln_full = soln_full + soln_incr;
     soln_full_supg = soln_full_supg + soln_incr_supg;
-    soln_full_ppv = soln_full_ppv + soln_incr_ppv;
+    % soln_full_ppv = soln_full_ppv + soln_incr_ppv;
 
+end
+
+for iter = 1:9
+    Kglobal_g = zeros(totaldof, totaldof);
+    Fglobal_g = zeros(totaldof, 1);
+    Kglobal_ppv = zeros(totaldof, totaldof);
+    Fglobal_ppv = zeros(totaldof, 1);
+
+    for elnum = 1:nelem
+        elem_dofs = elem_dof_conn(elnum, :);
+
+        Klocal = zeros(2, 2);
+        Flocal = zeros(2, 1);
+        [Klocal, Flocal] = galerkinApproximation(c, mu, he, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
+        Kglobal_g(elem_dofs, elem_dofs) = Kglobal_g(elem_dofs, elem_dofs) + Klocal;
+        Fglobal_g(elem_dofs, 1) = Fglobal_g(elem_dofs, 1) + Flocal;
+
+        [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal);
+        Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
+        Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
+    end
+    Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
+    Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
+    rNorm = norm(Fglobal_g);
+
+    if (rNorm < 1.0e-10)
+        break;
+    end
+
+    Kglobal_ppv = stiffnessMatrix(Kglobal_ppv, totaldof);
+    soln_incr_ppv = Kglobal_ppv \ Fglobal_ppv;
+    soln_full_ppv = soln_full_ppv + soln_incr_ppv;
 end
 
 u_analytical = analyticalSolution(node_coords, c, mu, s, L, uL, uR);
@@ -258,12 +301,14 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         dNdx = dNdxi / Jac;
 
         du = dNdx * u'
-        uh = N * u'
+        uh = N * u';
 
         x = N * [x1 x2]';
         % f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
         f = 0;
-
+        if uh < 1e-3
+            uh = 0;
+        end
         % if f == 0
         % res_ratio = abs(a);
         % else
@@ -277,11 +322,23 @@ function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts
         % test = (abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
         % - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6;
         kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
-            - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
+        - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
 
         % stabilization
         mod_test = a * dNdx' + abs(s) * N';
         Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
+        % % Check if solution is negative
+        % if uh < 0
+        %     uh = 0;
+        %     res_ratio = ((abs(a) + (abs(s * uh - f) / (abs(du) + eps))));
+        %     chi = 2 / ((abs(s) * h) + (2 * abs(a)));
+        %     kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
+        %         - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
+        % 
+        %     % Add nonlinear PPV stabilization only if solution is negative
+        %     Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
+        %     Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
+        % end
 
         Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
 
