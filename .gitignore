@@ -1,4 +1,13 @@
 MATLAB code/
 FEM material/
 notes/
-
+*.asv
+main.aux
+main.fls
+# main.pdf
+main.fdb_latexmk
+main.log
+main.synctex.gz
+main.toc
+# test.m
+test1.m
