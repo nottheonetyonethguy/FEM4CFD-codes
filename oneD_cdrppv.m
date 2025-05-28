@@ -7,8 +7,6 @@ xR = 1;
 % mu = 0.0080;
 c = 2;
 f = 0; % changes
-nelem = 50;
-% f = 0;
 
 nelem = 10;
 
