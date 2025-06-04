@@ -15,9 +15,11 @@ matdata = 1;
 k = 1e-8;
 % ux = 0.7071; uy = 0.7071;
 % case 1, delta = 0
-mod_u = 1;
-delta = 0;
-ux = mod_u * cosd(delta); uy = -mod_u * sind(delta);
+% mod_u = 1;
+% delta = 0;
+% ux = mod_u * cosd(delta); uy = -mod_u * sind(delta);
+% case 2, u = [1 0]'
+ux = 1; uy = 0;
 
 % elemdata
 elemdata = 1;
@@ -28,14 +30,14 @@ npelem = 4;
 nelem = n_elem ^ 2;
 
 % boundary conditions
-nforce = 0;
+nforce = 1; % source term
 % nbound = 100;
 % number of nodes in boundary = n_elem * 4 (sides)
 nbound = n_elem * 4;
 
 %% open new file to write data
 % delete(data.inp)
-fileID = fopen('data0.inp', 'a+');
+fileID = fopen('data_p2.inp', 'a+');
 fprintf(fileID, 'ndim,%d\n', ndim);
 fprintf(fileID, 'ndof,%d\n', ndof);
 fprintf(fileID, 'nnode,%d\n', nnode);
@@ -122,13 +124,9 @@ bc_ycoords = Y(:, 1); % all values in first column
 idx_y = find(bc_ycoords == 0.7); % find the index for y values starting from 0.7
 % print values for x (0, 0.7) to (0, 1)
 node_nums = conn_table(:, 1);
-b_val = 1.0; % boundary value
+b_val = 0.0; % boundary value
 for i = 1:length(bc_ycoords)
-	if(i >= idx_y)
-		fprintf(fileID, "%d,%d,%f\n", node_nums(i), elemdata, b_val);
-	else
-		fprintf(fileID, "%d,%d,%f\n", node_nums(i), elemdata, 0.0);
-	end
+	fprintf(fileID, "%d,%d,%f\n", node_nums(i), elemdata, b_val);
 end
 
 % for y = 0, top edge
@@ -136,7 +134,7 @@ bc_xcoords = X(end, 2:end); % final row, 2nd col to end col because 0,1 is alrea
 
 % print values for x (0, 1) to (1, 1)
 node_nums = conn_table(end, 2:end);
-b_val = 1.0; % boundary value
+b_val = 0.0; % boundary value
 for i = 1:length(bc_xcoords)
 	fprintf(fileID, "%d,%d,%f\n", node_nums(i), elemdata, b_val);
 end
@@ -163,6 +161,8 @@ end
 
 %% forcing term
 fprintf(fileID, "nforce,%d\n", nforce);
-
+for i = 1:nnode
+	fprintf(fileID, "%d,%d,%f\n", i, elemdata, nforce);
+end
 % end
 
