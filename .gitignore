@@ -12,5 +12,7 @@ main.synctex.gz
 main.toc
 # test.m
 test1.m
-*.vtk
-*.inp
+# *.vtk
+# *.inp
+*/*.inp
+*/*.vtk
