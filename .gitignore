@@ -14,5 +14,5 @@ main.toc
 test1.m
 # *.vtk
 # *.inp
-*/*.inp
-*/*.vtk
+twoDimensional/*.inp
+twoDimensional/*.vtk
