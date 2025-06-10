@@ -99,7 +99,7 @@ Here, $N_i$ is the shape function or basis function at that node, $n_{el}$ is th
     \end{aligned}
 \end{equation}
 Here, in (\ref{galapprox}) $f$ represents the source term and for problems with only Dirichlet boundary conditions, the second term on right hand vanishes, effectively giving us the weak form of the Galerkin approximatin of the ADR equation. \\
-Solving the equation for cell Pe = 0.1, where Pe is defined by $ Pe = \frac{a \cdot he}{2k}$ with 10 linear elements, with the domain length 1 and (0, 1) Dirichlet boundary conditions ont he left and the right of the domain respectively. The results of the comparison of the Galerkin solution with the analytical solution \ref{analsol} without a source or a reaction term can be seen in Figure \ref{fig-gal-1}.\\
+Solving the equation for cell Pe = 0.1, where Pe is defined by $ Pe = \frac{a \cdot he}{2k}$ with 10 linear elements, with the domain length 1 and (0, 1) Dirichlet boundary conditions on the left and the right of the domain respectively. The results of the comparison of the Galerkin solution with the analytical solution \ref{analsol} without a source or a reaction term can be seen in Figure \ref{fig-gal-1}.\\
 \subsubsection{Implementation}
 The following section explores the implementation of the Galerkin approximation for the one dimensional advection diffusion equation in MATLAB.
 \begin{enumerate}
@@ -148,7 +148,7 @@ dofs_free = setdiff(dofs_full, dofs_fixed);
 soln_full = zeros(totaldof, 1);
 	
 	\end{lstlisting}
-	The first section of the code is dedicated for the initial boundary values, domain properties and initializing the solution arrays for calculation. $he$ is the elemental length, while $L$ is the length of the domain. $xL$ and $xR$ are the left and the right boundaries of the domain and $nelem$ is the number of elements the domain will be discretized into. $totaldof$ is the total degrees of freedom of the entire system and $soln_full$ is the final solution array i.e., $\phi(x)$. This solution utilizes Gaussian points for numerical integration over an element. For the purpose of this solution, two Gausspoints ($nGP$) are considered (linear element) with $xi$ and $wt$ being $\pm \frac{1}{\sqrt(3)}$ and 1.0, respectively. 
+	The first section of the code is dedicated for the initial boundary values, domain properties and initializing the solution arrays for calculation. $he$ is the elemental length, while $L$ is the length of the domain. $xL$ and $xR$ are the left and the right boundaries of the domain and $nelem$ is the number of elements the domain will be discretized into, $totaldof$ is the total degrees of freedom of the entire system, and $soln_full$ is the final solution array i.e., $\phi(x)$. This solution utilizes Gaussian points for numerical integration over an element. For the purpose of this solution, two Gausspoints ($nGP$) are considered (linear element) with $xi$ and $wt$ being $\pm \frac{1}{\sqrt(3)}$ and 1.0, respectively. 
 	\item Processing:
 	   \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Processing
@@ -200,6 +200,7 @@ end
 			1 & 2
 	          \end{bmatrix}\hfill
 	   \end{equation}
+	   Once the global stiffness matrix and the force vectors are assembled, the \textit{forceVector} function is called. The \textit{forceVector} function sets the first and the last elements of the force Vector as the left and the right boundary conditions (for this case i.e., Dirichlet BCs). Similar to the \textit{forceVector} function, the \textit{stiffnessMatrix} function also sets the boundary conditions for the stiffness matrix. The \textit{stiffnessMatrix} subroutine changes the first element in the first row and the first column of the stiffness matrix to 1 and every other element to 0. This enforces the Dirichlet boundary condition.
 	    \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Galerkin Approximation function
 function [Klocal, Flocal] = galerkinApproximation(a, mu, h, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal)
@@ -253,7 +254,7 @@ function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
 
 end
    \end{lstlisting}
-	      \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+   \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Stiffness Matrix Assembly 
 function Kglobal = stiffnessMatrix(Kglobal, totaldof)
    Kglobal(1, :) = zeros(totaldof, 1);
@@ -271,6 +272,7 @@ It can be seen the Galerkin approximation for the one dimensional advection diff
     \phi(x) =  \frac{e^{a x k} -1}{e^{Pe} - 1} 
 \end{equation} 
 \begin{figure}[!h]
+    \captionsetup[subfigure]{justification=centering}
     \centering
     \begin{subfigure}[!h]{0.45\textwidth}
 	\includegraphics[width=\textwidth]{pe01_no_source.jpg}
