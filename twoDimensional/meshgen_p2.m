@@ -19,8 +19,8 @@ k = 1e-8;
 % delta = 0;
 % ux = mod_u * cosd(delta); uy = -mod_u * sind(delta);
 % case 2, u = [1 0]'
-ux = 0; uy = 0;
-s = 1; f = 1;
+ux = 1; uy = 0;
+s = 0; f = 1;
 
 % elemdata
 elemdata = 1;

@@ -82,6 +82,7 @@ for gp = 1:nGP
 	% SUPG
 	bvec = JacInv * avec;
 	tau_e = calculate_stabilisation_term(avec, bvec, mu);
+	% tau_e = calculate_tau_supg(avec, mu, s, xNode, yNode);
 	
 	% SUPG
 	tau_SUPG = tau_e;
@@ -91,11 +92,11 @@ for gp = 1:nGP
 	Klocal = Klocal + tau_SUPG * (avec' * G)' * (s * N)' * dvol;
 	
 	% combined GLS/SGS
-	mod_test = (avec' * G)' + abs(s) * N;
-	Klocal = Klocal + tau_SUPG * mod_test * (avec' * G + s * N') * dvol;
-	
+	% mod_test = (avec' * G)' + abs(s) * N;
+	% Klocal = Klocal + tau_SUPG * mod_test * (avec' * G + s * N') * dvol;
+    % 
 	% reaction term
-	Klocal = Klocal + tau_SUPG * (avec' * G)' * (s * N)' * dvol;
+	% Klocal = Klocal + tau_SUPG * (avec' * G)' * (s * N)' * dvol;
 	
 	Flocal = Flocal - tau_SUPG * G' * avec * avec' * du * dvol;
 	
