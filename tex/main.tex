@@ -1,8 +1,9 @@
 \documentclass[12pt, oneside]{article} 
-\usepackage{amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
-\usepackage{physics, amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
+% \usepackage{amsmath, amsthm, amssymb, calrsfs, wasysym, verbatim, bbm, color, graphics, geometry}
+\usepackage{physics, amsmath, amssymb, verbatim, bbm, color, graphics, geometry}
 \usepackage{graphicx, caption, subcaption}
 \usepackage{matlab-prettifier}
+% \usepackage{mathrsfs}
 
 \geometry{tmargin=.75in, bmargin=.75in, lmargin=.75in, rmargin = .75in}  
 
@@ -99,7 +100,7 @@ Here, $N_i$ is the shape function or basis function at that node, $n_{el}$ is th
     \end{aligned}
 \end{equation}
 Here, in (\ref{galapprox}) $f$ represents the source term and for problems with only Dirichlet boundary conditions, the second term on right hand vanishes, effectively giving us the weak form of the Galerkin approximatin of the ADR equation. \\
-Solving the equation for cell Pe = 0.1, where Pe is defined by $ Pe = \frac{a \cdot he}{2k}$ with 10 linear elements, with the domain length 1 and (0, 1) Dirichlet boundary conditions ont he left and the right of the domain respectively. The results of the comparison of the Galerkin solution with the analytical solution \ref{analsol} without a source or a reaction term can be seen in Figure \ref{fig-gal-1}.\\
+Solving the equation for cell Pe = 0.1, where Pe is defined by $ Pe = \frac{a \cdot he}{2k}$ with 10 linear elements, with the domain length 1 and (0, 1) Dirichlet boundary conditions on the left and the right of the domain respectively. The results of the comparison of the Galerkin solution with the analytical solution \ref{analsol} without a source or a reaction term can be seen in Figure \ref{fig-gal-1}.\\
 \subsubsection{Implementation}
 The following section explores the implementation of the Galerkin approximation for the one dimensional advection diffusion equation in MATLAB.
 \begin{enumerate}
@@ -148,7 +149,7 @@ dofs_free = setdiff(dofs_full, dofs_fixed);
 soln_full = zeros(totaldof, 1);
 	
 	\end{lstlisting}
-	The first section of the code is dedicated for the initial boundary values, domain properties and initializing the solution arrays for calculation. $he$ is the elemental length, while $L$ is the length of the domain. $xL$ and $xR$ are the left and the right boundaries of the domain and $nelem$ is the number of elements the domain will be discretized into. $totaldof$ is the total degrees of freedom of the entire system and $soln_full$ is the final solution array i.e., $\phi(x)$. This solution utilizes Gaussian points for numerical integration over an element. For the purpose of this solution, two Gausspoints ($nGP$) are considered (linear element) with $xi$ and $wt$ being $\pm \frac{1}{\sqrt(3)}$ and 1.0, respectively. 
+	The first section of the code is dedicated for the initial boundary values, domain properties and initializing the solution arrays for calculation. $he$ is the elemental length, while $L$ is the length of the domain. $xL$ and $xR$ are the left and the right boundaries of the domain and $nelem$ is the number of elements the domain will be discretized into, $totaldof$ is the total degrees of freedom of the entire system, and $soln_full$ is the final solution array i.e., $\phi(x)$. This solution utilizes Gaussian points for numerical integration over an element. For the purpose of this solution, two Gausspoints ($nGP$) are considered (linear element) with $xi$ and $wt$ being $\pm \frac{1}{\sqrt(3)}$ and 1.0, respectively. 
 	\item Processing:
 	   \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Processing
@@ -237,6 +238,7 @@ function [Klocal, Flocal] = galerkinApproximation(a, mu, h, s, nGP, gpts, gwts, 
 	   Flocal_g = Flocal_g + Flocal;
 end
        \end{lstlisting}
+	   Once the global stiffness matrix and the force vectors are assembled, the \textit{forceVector} function is called. The \textit{forceVector} function sets the first and the last elements of the force Vector as the left and the right boundary conditions (for this case i.e., Dirichlet BCs). Similar to the \textit{forceVector} function, the \textit{stiffnessMatrix} function also sets the boundary conditions for the stiffness matrix. The \textit{stiffnessMatrix} subroutine changes the first element in the first row and the first column of the stiffness matrix to 1 and every other element to 0. This enforces the Dirichlet boundary condition.
 	      \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Force vector assembly
 function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
@@ -253,7 +255,7 @@ function Fglobal = forceVector(Kglobal, Fglobal, iter, uL, uR, totaldof)
 
 end
    \end{lstlisting}
-	      \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+   \begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
 %% Stiffness Matrix Assembly 
 function Kglobal = stiffnessMatrix(Kglobal, totaldof)
    Kglobal(1, :) = zeros(totaldof, 1);
@@ -266,11 +268,12 @@ function Kglobal = stiffnessMatrix(Kglobal, totaldof)
 end
 \end{lstlisting}
 \end{enumerate}
-It can be seen the Galerkin approximation for the one dimensional advection diffusion equation closely follows the analytical solution. However, at higher Peclet numbes, or due to a finer mesh, spurious oscillations are introduced, as seen in Figure \ref{fig-gal-2}.
+It can be seen in Figure \ref{fig-gal-1} that the Galerkin approximation for the one dimensional advection diffusion equation closely follows the analytical solution. However, at higher Peclet numbers, or due to a finer mesh, spurious oscillations are introduced, as seen in Figure \ref{fig-gal-2}. \ref{analsol} represents the analytical solutionfor this case of the advection diffusion reaction equation.
 \begin{equation} \label{analsol}
     \phi(x) =  \frac{e^{a x k} -1}{e^{Pe} - 1} 
 \end{equation} 
 \begin{figure}[!h]
+    \captionsetup[subfigure]{justification=centering}
     \centering
     \begin{subfigure}[!h]{0.45\textwidth}
 	\includegraphics[width=\textwidth]{pe01_no_source.jpg}
@@ -285,6 +288,161 @@ It can be seen the Galerkin approximation for the one dimensional advection diff
     \end{subfigure}
     \caption{Galerkin Approximation solution}
 \end{figure}
+Spurious oscillations in the Galerkin approximation of the advection diffusion reaction equation occurs primarily in advection dominated regimes. The standard Galerkin approximation struggles to resolve the layers in advection dominated regions ($a\ >>\ k $), which causes steep gradients and non-physical oscillations. There are several ways to mitigate these oscillations. 3 are presented in the following sections: Petrov-Galerkin (PG), Stream-Upwind Petrov-Galerkin (SUPG), and Positivity Preserving Variational method (PPV). Compared to PG and SUPG methods, PPV is used to preserve the non-linear positivity condition, making sure discontinuity in the solution are captured and corrected.
+\subsection{Petrov-Galerkin Method}
+The Galerkin method introduces several problems i.e., sharp gradients and spurious oscillations, in advection dominated problems. These problems or defeciencies can be cured in two ways: one, adding a diffusion term to balance the numerical diffusion introduced by the Galerkin approximation, and two, an upwind approximation of the convective term of the Galerkin solution. Early solutions to the problems in Galerkin method were solved using these two philosophies; however both methodologies are actually equivalent, in that an upwind approximation induces numerical diffusion.\\
+The finite element method approximates the advection term with a second order central difference method. Numerical diffusion, however can be introduced by replacing tthe central differencing method by a first-order upwind method, for a $>$ 0:
+\begin{equation}
+       \begin{aligned}
+	    u_x(x_j) \approx \frac{u_j - u_{j - 1}}{h}\\
+	    a \frac{u_j u_{j - 1}}{h} - k \frac{u_{j + 1} - 2u_j + u_{j-1}}{h^2} = 0
+       \end{aligned}
+\end{equation}
+Using Taylor expansion for the advection term, an added diffusion of magnitude $\frac{ah}{2}$ is introduced by the upwind approximation. However this upwind treatment of the ADR equation leads to a stable but highly diffusive solution. The Petrov-Galerkin method also utilizes a weighting function that is different than the standard Galerkin method in which $W_a \neq N_a$. For the Petrov-Galerkin method the weighting function becomes
+\begin{equation}
+       \begin{gathered}
+	    W_a = N_a + \alpha W_a^*\\
+	    \alpha\ or\ \alpha_{opt} = coth|Pe| - \frac{1}{|Pe|}
+       \end{gathered}
+\end{equation}
+This value of $\alpha$ is chosen to give the exact nodal values for all values of Pe. But, it can be observed from Figure \ref{pe5_no_source} that the solution is over diffusive and deviates from the analytical solution of the governing equation.
+
+\begin{figure}[!h]
+\centering
+ \includegraphics[width=0.7\textwidth]{pe5_pg_no_source.jpg}
+\caption{For Pe = 5 with no source}
+ \label{pe5_no_source}
+\end{figure}   
+
+\subsubsection{Implementation}
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+function [Klocal_pg, Flocal_pg] = petrovGalerkin(a, mu, h, alpha, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_pg, Klocal, Flocala)
+	Klocal = zeros(2, 2);
+	Flocal = zeros(2, 1);
+    
+	n1 = elem_dofs(1);
+	n2 = elem_dofs(2);
+
+	u1 = soln_full_pg(n1);
+	u2 = soln_full_pg(n2);
+
+	for gp = 1:nGP
+		xi = gpts(gp);
+		wt = gwts(gp);
+		
+		N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+		dNdxi = [-0.5, 0.5];
+		
+		Jac = h / 2;
+		
+		dNdx = dNdxi / Jac;
+		
+		% advection
+		Klocal = Klocal + (alpha * a * dNdx' * dNdx) * Jac * wt;
+		
+		% diffusion
+		Flocal = Flocal - (alpha * a * dNdx' * du) * Jac * wt;
+		end
+	Klocal_pg = Klocal_pg + Klocal;
+	Flocal_pg = Flocal_pg + Flocal;
+
+end
+
+    
+   \end{lstlisting}
+This is the subroutine for the Petrov-Galerkin implementation. To implement this correctly, these lines must be added to the pre-processing and the main loop of the main function, respectively.
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+% at the preprocessing section
+alpha = 1 / tanh(Pe) - 1 / (abs(Pe));
+\end{lstlisting}
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+% in the main loop, inside the iteration loop
+Kglobal_pg = zeros(totaldof, totaldof);
+Fglocal_pg = zeros(totaldof, 1);
+% inside the element loop
+[Klocal_pg, Flocal_pg] = petrovGalerkin(a, mu, h, alpha, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_pg, Klocal, Flocala);
+Kglobal_pg(elem_dofs, elem_dofs) = Kglocal_pg(elem_dofs, elem_dofs) + Klocal;
+Fglobal_pg(elem_dofs, 1) = Fglobal_pg(elem_dofs, 1) + Flocal;
+\end{lstlisting}
+\subsection{Stream-Upwind Petrov-Galerkin Method}
+The SUPG method is a stabilization technique used to stabilize the convective term in a consistent manner. This ensures the solution of the differential equation is similar to the solution of the weak form of the governing equation. A standard stabilization technique adds an extra term to the Galerkin weak form, and this term is a function of the residual of the weak form. We know the residual of the ADR equation is  
+\begin{equation}
+       \begin{gathered}
+	   \mathcal{R}(u) = a \cdot \nabla \phi - \nabla \cdot (\nu \nabla \phi) + \sigma \phi - f = \mathcal{L}(u) - f
+       \end{gathered}
+\end{equation}
+Here $\mathcal{L}$ is the differential operator. Now, the standard form of stabilization techniques is 
+\begin{equation}
+       \begin{gathered}
+	   a \cdot \nabla \phi - \nabla \cdot (\nu \nabla \phi) + \sigma \phi + \sum_{e} \int_\Omega \mathcal{P}(w)\tau\mathcal{R}(u) \dd \Omega = f
+       \end{gathered}
+\end{equation}
+where $\tau$ is the stabilization term and $\mathcal{P}(w)$ is the operator applied to the test function. For the SUPG method, the terms are:
+    \begin{equation}
+           \begin{gathered}
+	       \mathcal{P}(w) = a \cdot \nabla w \\
+	    \tau = \frac{he}{2a} \left( coth(Pe) - \frac{1}{Pe} \right)
+           \end{gathered}
+    \end{equation}
+\subsubsection{Implementation}
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+function [Klocal_supg, Flocal_supg] = supg(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_supg, Klocal, Flocal)
+Klocal_supg = zeros(2, 2);
+Flocal_supg = zeros(2, 1);
+
+n1 = elem_dofs(1);
+n2 = elem_dofs(2);
+
+x1 = node_coords(n1);
+x2 = node_coords(n2);
+
+u1 = soln_full_supg(n1);
+u2 = soln_full_supg(n2);
+u = [u1 u2];
+
+for gp = 1:nGP
+	xi = gpts(gp);
+	wt = gwts(gp);
+	
+	N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	dNdxi = [-0.5, 0.5];
+	
+	Jac = h / 2;
+	
+	dNdx = dNdxi / Jac;
+	du = dNdx * u';
+	uh = N * u';
+	x = N * [x1 x2]';
+	
+	mod_test = a * dNdx';
+	
+	% stabilization
+	Klocal = Klocal + tau * (mod_test * (a * dNdx + s * N) * Jac * wt);
+	% force vector
+	res = a * du + s * uh - f; % residual
+	% Flocal = Flocal + tau * a * dNdx' * f * Jac * wt;
+	Flocal = Flocal + tau * (mod_test * f) * Jac * wt;
+	Flocal = Flocal - tau * dNdx' * a ^ 2 * du * Jac * wt;
+end
+
+Klocal_supg = Klocal_supg + Klocal;
+Flocal_supg = Flocal_supg + Flocal;
+
+end
+   \end{lstlisting}
+
+\begin{figure}[!h]
+\centering
+ \includegraphics[width=0.7\textwidth]{pe_10_da_10_supg_1_0.jpg}
+ \caption{For Pe = 10, Da = 10, (1, 0)}
+ \label{pe_10_da_10_1_0_supg}
+\end{figure}
+This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem.
+\subsection{Postivity Preserving Variational Method}
+To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving solmethod is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. \\
+A positivity condition is enforced in the element stiffness matrix i.e.,
+   \begin{equation}
+       k_{ij} = k_{ji} = max(0, a_{ij}, a_{ji})
+ \end{equation}
+ where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix.
 \end{document}
-
-
