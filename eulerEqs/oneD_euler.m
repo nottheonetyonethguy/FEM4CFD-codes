@@ -1,373 +1,291 @@
-% 1D Riemann Shock Tube Problem using Euler Taylor-Galerkin Method
-% Based on Sod's problem from the paper
+% parameters
+gamma = 1.4;
+x_left = 0.0;
+x_right = 10.0;
+x_interface = 5.0;
 
-% Problem parameters
-gamma = 1.4;                % Ratio of specific heats
-x_left = 0.0;              % Left boundary
-x_right = 1.0;            % Right boundary
-x_interface = 0.5;         % Initial interface position
+n_elements = 100;
+dx = (x_right - x_left) / n_elements;
+n_nodes = n_elements + 1;
 
-% Initial conditions (Sod's problem)
-% Left state (high pressure)
-rho_L = 1.0;               % Density
-u_L = 0.0;                 % Velocity
-p_L = 1.0;                 % Pressure
+nGP = 2;
 
-% Right state (low pressure)
-rho_R = 0.125;             % Density
-u_R = 0.0;                 % Velocity
-p_R = 0.1;                 % Pressure
+CFL = 0.5773;
+t_final = 0.2;
+niter = 3;
+c_lapidus = 0.1;
 
-% Numerical parameters
-n_elements = 100;          % Number of elements
-dx = (x_right - x_left) / n_elements;  % Element size
-n_nodes = n_elements + 1;  % Number of nodes
+rho_L = 1.0; u_L = 0.0; p_L = 1.0;
+rho_R = 0.125; u_R = 0.0; p_R = 0.1;
 
-% Time stepping
-% CFL = 0.5;                 % CFL number
-CFL = 1;                 % CFL number
-t_final = 14.35;             % Final time
-niter = 3;                 % Iterations for consistent mass matrix
-c_lapidus = 1.0;           % Lapidus artificial viscosity constant
-
-% Initialize solution
 x = linspace(x_left, x_right, n_nodes);
-U = zeros(3, n_nodes);     % [density; momentum; total energy]
+U = zeros(3, n_nodes);
 
-% Set initial conditions
+% initial conditions
 for i = 1:n_nodes
 	if x(i) <= x_interface
-		rho = rho_L;
-		u = u_L;
-		p = p_L;
+		rho = rho_L; u = u_L; p = p_L;
 	else
-		rho = rho_R;
-		u = u_R;
-		p = p_R;
+		rho = rho_R; u = u_R; p = p_R;
 	end
-	
-	e = p / ((gamma - 1) * rho) + 0.5 * u^2;  % Specific total energy
-	
-	U(1, i) = rho;              % Density
-	U(2, i) = rho * u;          % Momentum
-	U(3, i) = rho * e;          % Total energy
+	e = p / ((gamma - 1) * rho) + 0.5 * u^2;
+	U(:, i) = [rho; rho * u; rho * e];
 end
 
-% Time integration
+% time stepping
 t = 0.0;
-time_step = 0;
-dt = 0.205;
-
-% Storage for results
-U_history = [];
-t_history = [];
-
-fprintf('Starting simulation...\n');
-
+step = 0;
 while t < t_final
-	% Calculate time step
-	% dt = calculate_timestep(U, dx, gamma, CFL);
-	
-	% Ensure we don't overshoot final time
+	dt = calculate_timestep(U, dx, gamma, CFL);
 	if t + dt > t_final
 		dt = t_final - t;
 	end
 	
-	% Take one time step
-	U = euler_taylor_galerkin_step(U, dx, dt, gamma, niter, c_lapidus);
+	U_old = U;
+	U = euler_taylor_galerkin(U, dx, dt, gamma, niter, c_lapidus, nGP);
 	
-	% Update time
+	if any(~isfinite(U(:)))
+		fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
+		U = U_old;
+		dt = dt * 0.5;
+		if dt < 1e-10
+			error('Time step too small, simulation failed');
+		end
+		continue;
+	end
+	
+	% time update
 	t = t + dt;
-	time_step = time_step + 1;
-	
-	% Store results at certain intervals
-	% if mod(time_step, 10) == 0 || t >= t_final
-	U_history(:, :, end+1) = U;
-	t_history(end+1) = t;
-	fprintf('Time step %d, t = %.4f, dt = %.6f\n', time_step, t, dt);
-	% end
+	step = step + 1;
+	fprintf('Step %d: Time = %.4f, dt = %.6f\n', step, t, dt);
 end
 
-% Plot results
-plot_results(x, U, U_history, t_history, gamma);
+plot_results(x, U, gamma);
 
-fprintf('Simulation completed!\n');
-
+%% calculate time step based on CFL condition
 function dt = calculate_timestep(U, dx, gamma, CFL)
-% Calculate maximum allowable time step based on CFL condition
-
 n_nodes = size(U, 2);
 max_speed = 0;
-
 for i = 1:n_nodes
 	rho = U(1, i);
+	if rho <= 0
+		rho = 1e-10;
+	end
 	u = U(2, i) / rho;
 	E = U(3, i);
 	p = (gamma - 1) * (E - 0.5 * rho * u^2);
-	
-	% Speed of sound
+	if p <= 0
+		p = 1e-10;
+	end
 	c = sqrt(gamma * p / rho);
-	
-	% Maximum characteristic speed
-	speed = abs(u) + c;
-	max_speed = max(max_speed, speed);
+	max_speed = max(max_speed, abs(u) + c);
 end
-
 dt = CFL * dx / max_speed;
 end
 
-function U_new = euler_taylor_galerkin_step(U, dx, dt, gamma, niter, c_lapidus)
-% Single time step using Euler Taylor-Galerkin method
-
+%% euler taylor-galerkin method
+function U_new = euler_taylor_galerkin(U, dx, dt, gamma, niter, c_lapidus, nGP)
 n_nodes = size(U, 2);
 n_elements = n_nodes - 1;
 
-% Calculate fluxes and Jacobians at current time
-[F, A, dAdU] = calculate_flux_jacobian(U, gamma);
+% flux, jacobians
+[F, A] = calculate_flux_jacobian(U, gamma);
 
-% Calculate source term derivatives (zero for Euler equations)
-dSdU = zeros(3, 3, n_nodes);
-S = zeros(3, n_nodes);
-
-% Assemble element contributions
-U_new = U;
+M_global = sparse(3*n_nodes, 3*n_nodes);
+F_global = zeros(3*n_nodes, 1);
 
 for elem = 1:n_elements
-	% Element nodes
 	node1 = elem;
 	node2 = elem + 1;
 	
-	% Element solution and derivatives
-	U_elem = [U(:, node1), U(:, node2)];
-	F_elem = [F(:, node1), F(:, node2)];
+	U_elem = U(:, node1:node2);
+	F_elem = F(:, node1:node2);
 	A_elem = cat(3, A(:, :, node1), A(:, :, node2));
 	
-	% Calculate element matrices and vectors
-	[M_elem, P_elem] = element_matrices(U_elem, F_elem, A_elem, dAdU(:,:,node1:node2), ...
-		S(:,node1:node2), dSdU(:,:,node1:node2), dx, dt);
+	[M_elem, F_elem] = element_matrices(U_elem, F_elem, A_elem, dx, dt, gamma, nGP);
 	
-	% Apply consistent mass matrix iteration
-	delta_U = zeros(3, 2);
-	M_lumped = diag(diag(M_elem));  % Lumped mass matrix
+	dof1 = (node1-1)*3 + (1:3);
+	dof2 = (node2-1)*3 + (1:3);
+	global_dofs = [dof1, dof2];
 	
-	for iter = 1:niter
-		if iter == 1
-			delta_U_old = zeros(3, 2);
-		else
-			delta_U_old = delta_U;
-		end
-		
-		% Solve lumped system
-		rhs = P_elem - M_elem * delta_U_old(:);
-		delta_U(:) = M_lumped \ rhs;
-	end
-	
-	% Update nodal values
-	U_new(:, node1) = U_new(:, node1) + delta_U(:, 1);
-	U_new(:, node2) = U_new(:, node2) + delta_U(:, 2);
+	M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
+	F_global(global_dofs) = F_global(global_dofs) + F_elem;
 end
 
-% Apply artificial viscosity (Lapidus smoothing)
-if c_lapidus > 0
-	U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
+delta_U_global = zeros(3*n_nodes, 1);
+M_lumped = spdiags(sum(M_global, 2), 0, 3*n_nodes, 3*n_nodes);
+
+for iter = 1:niter
+	residual = F_global - M_global * delta_U_global;
+	delta_U_global = M_lumped \ residual;
 end
 
-% Ensure positivity of density and pressure
+U_new = U;
+for i = 1:n_nodes
+	dofs = (i-1)*3 + (1:3);
+	U_new(:, i) = U(:, i) + delta_U_global(dofs);
+end
+
+U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
+
 U_new = enforce_positivity(U_new, gamma);
 end
 
-function [M_elem, P_elem] = element_matrices(U_elem, F_elem, A_elem, dAdU_elem, S_elem, dSdU_elem, dx, dt)
-% Calculate element mass matrix and load vector
+function [M_elem, R_elem] = element_matrices(U_elem, F_elem, A_elem, dx, dt, gamma, nGP)
 
-% Linear shape functions and derivatives
-N = [0.5, 0.5; 0.5, 0.5];  % Shape functions at integration points
-dN_dx = [-1/dx; 1/dx];      % Shape function derivatives
+[gpts, gwts] = get_Gausspoints_1D(nGP);
 
-% Element mass matrix (consistent)
-M_elem = (dx/6) * [2*eye(3), eye(3); eye(3), 2*eye(3)];
+M_elem = zeros(6, 6);
+R_elem = zeros(6, 1);
 
-% Calculate load vector components
-P_elem = zeros(6, 1);
+Jac_elem = dx / 2;
 
-for gp = 1:2  % Gauss points
-	if gp == 1
-		xi = -1/sqrt(3);
-		w = 1.0;
-	else
-		xi = 1/sqrt(3);
-		w = 1.0;
+for gp = 1:nGP
+	xi = gpts(gp);
+	w = gwts(gp);
+	
+	N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	dN_dxi = [-0.5, 0.5];
+	dN_dx = dN_dxi / Jac_elem;
+	
+	% U_gp = U_elem * N';
+	% F_gp = F_elem * N';
+    % calc flux and jac inside the gauss loop, mass matrix outside the time
+    % loop
+	
+	% A_gp = 0.5 * (A_elem(:, :, 1) + A_elem(:, :, 2));
+	A_gp = A_elem(:, :, gp);
+	
+	% taylor-galerkin terms:
+	
+	dF_dx = F_elem * dN_dx';
+	
+	rhs = -dt * dF_dx + (dt^2 / 2) * A_gp * dF_dx;
+	
+	% assembly
+	for i = 1:2
+		i_dofs = (i-1)*3 + (1:3);
+		
+		R_elem(i_dofs) = R_elem(i_dofs) + rhs * N(i) * Jac_elem * w;
+		
+		% mass matrix
+		for j = 1:2
+			j_dofs = (j-1)*3 + (1:3);
+			M_ij = N(i) * N(j) * eye(3) * Jac_elem * w;
+			M_elem(i_dofs, j_dofs) = M_elem(i_dofs, j_dofs) + M_ij;
+		end
 	end
-	
-	% Shape functions at Gauss point
-	N1 = 0.5 * (1 - xi);
-	N2 = 0.5 * (1 + xi);
-	N_gp = [N1; N2];
-	
-	% Interpolate quantities at Gauss point
-	U_gp = U_elem * N_gp;
-	F_gp = F_elem * N_gp;
-	S_gp = S_elem * N_gp;
-	
-	% Average Jacobian
-	A_gp = 0.5 * (A_elem(:,:,1) + A_elem(:,:,2));
-	dSdU_gp = 0.5 * (dSdU_elem(:,:,1) + dSdU_elem(:,:,2));
-	
-	% Calculate flux derivative
-	dF_dx = F_elem * dN_dx;
-	
-	% First order terms
-	term1 = dt * (S_gp - A_gp * (U_elem * dN_dx));
-	
-	% Second order terms
-	term2 = (dt^2/2) * (dSdU_gp * (S_gp - A_gp * (U_elem * dN_dx)) - ...
-		A_gp * dF_dx);
-	
-	% Add to load vector
-	P_elem(1:3) = P_elem(1:3) + w * dx/2 * N1 * (term1 + term2);
-	P_elem(4:6) = P_elem(4:6) + w * dx/2 * N2 * (term1 + term2);
 end
 end
 
-function [F, A, dAdU] = calculate_flux_jacobian(U, gamma)
-% Calculate flux vector, Jacobian matrix, and Jacobian derivatives
-
+%% Flux and Jacobian
+function [F, A] = calculate_flux_jacobian(U, gamma)
 n_nodes = size(U, 2);
 F = zeros(3, n_nodes);
 A = zeros(3, 3, n_nodes);
-dAdU = zeros(3, 3, n_nodes);
 
 for i = 1:n_nodes
-	rho = U(1, i);
+	rho = max(U(1, i), 1e-10);
 	mom = U(2, i);
-	E = U(3, i);
+	E = max(U(3, i), 1e-10);
 	
 	u = mom / rho;
 	p = (gamma - 1) * (E - 0.5 * rho * u^2);
-	H = (E + p) / rho;  % Total enthalpy
+	p = max(p, 1e-10);
+	H = (E + p) / rho;
 	
-	% Flux vector
-	F(:, i) = [mom; rho*u^2 + p; mom*H];
+	F(:, i) = [mom; rho * u^2 + p; mom * H];
 	
-	% Jacobian matrix A = dF/dU
 	A(:, :, i) = [0, 1, 0;
-		(gamma-3)*u^2/2, (3-gamma)*u, gamma-1;
-		u*((gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
-	
-	% For this implementation, we'll approximate dAdU as zero
-	% In a full implementation, you would compute the derivatives of A
-	dAdU(:, :, i) = zeros(3, 3);
+		0.5*(gamma-3)*u^2, (3-gamma)*u, gamma-1;
+		u*(0.5*(gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
 end
 end
 
+%% artificial viscosity lapidus
 function U_smooth = apply_artificial_viscosity(U, dx, c_lapidus)
-% Apply Lapidus artificial viscosity
-
 n_nodes = size(U, 2);
 U_smooth = U;
 
 for i = 2:n_nodes-1
-	% Calculate velocity at node i
-	rho = U(1, i);
-	u = U(2, i) / rho;
+	rho_L = max(U(1, i-1), 1e-10);
+	rho_R = max(U(1, i+1), 1e-10);
+	rho_C = max(U(1, i), 1e-10);
 	
-	% Calculate velocity gradient
-	rho_left = U(1, i-1);
-	rho_right = U(1, i+1);
-	u_left = U(2, i-1) / rho_left;
-	u_right = U(2, i+1) / rho_right;
+	gamma = 1.4;
+	p_L = (gamma - 1) * (U(3, i-1) - 0.5 * U(2, i-1)^2 / rho_L);
+	p_R = (gamma - 1) * (U(3, i+1) - 0.5 * U(2, i+1)^2 / rho_R);
+	p_C = (gamma - 1) * (U(3, i) - 0.5 * U(2, i)^2 / rho_C);
 	
-	du_dx = (u_right - u_left) / (2 * dx);
+	dp_dx = abs(p_R - p_L) / (2 * dx);
+	p_avg = (p_L + p_R + p_C) / 3;
 	
-	% Apply smoothing proportional to velocity gradient
-	epsilon = c_lapidus * dx^2 * abs(du_dx);
-	
-	for var = 1:3
-		U_smooth(var, i) = U(var, i) + epsilon * ...
-			(U(var, i+1) - 2*U(var, i) + U(var, i-1)) / dx^2;
+	if dp_dx > 0.1 * p_avg / dx
+		epsilon = c_lapidus * dx^2 * dp_dx;
+		for var = 1:3
+			U_smooth(var, i) = U(var, i) + epsilon * ...
+				(U(var, i+1) - 2*U(var, i) + U(var, i-1)) / dx^2;
+		end
 	end
 end
 end
 
+%% positivity (density and pressure)
 function U_pos = enforce_positivity(U, gamma)
-% Ensure density and pressure remain positive
-
 U_pos = U;
 n_nodes = size(U, 2);
 
 for i = 1:n_nodes
-	% Ensure positive density
-	if U_pos(1, i) <= 0
-		U_pos(1, i) = 1e-10;
-	end
+	rho_min = 1e-10;
+	p_min = 1e-10;
 	
-	% Ensure positive pressure
+	U_pos(1, i) = max(U_pos(1, i), rho_min);
+	
 	rho = U_pos(1, i);
 	mom = U_pos(2, i);
 	E = U_pos(3, i);
-	
 	p = (gamma - 1) * (E - 0.5 * mom^2 / rho);
 	
-	if p <= 0
-		% Adjust total energy to maintain positive pressure
+	if p <= p_min
 		u = mom / rho;
-		p_min = 1e-10;
 		U_pos(3, i) = p_min / (gamma - 1) + 0.5 * rho * u^2;
 	end
 end
 end
 
-function plot_results(x, U_final, U_history, t_history, gamma)
-% Plot the final results and animation
-
-% Convert conservative to primitive variables
-n_nodes = length(x);
-rho = U_final(1, :);
-u = U_final(2, :) ./ rho;
-E = U_final(3, :);
+%% Plot results
+function plot_results(x, U, gamma)
+rho = U(1, :);
+u = U(2, :) ./ rho;
+E = U(3, :);
 p = (gamma - 1) * (E - 0.5 * rho .* u.^2);
 
-% Create plots
-figure('Position', [100, 100, 1200, 800]);
+figure;
+% subplot(2, 2, 1);
+plot(x, rho, 'k-', 'LineWidth', 2);
+title('Density');
+xlabel('x'); ylabel('\rho');
+grid on; ylim([0, 1.2]);
 
-subplot(2, 2, 1);
-plot(x, rho, 'b-', 'LineWidth', 2);
-xlabel('x');
-ylabel('Density');
-title('Density Distribution');
+% subplot(2, 2, 2);
+figure;
+plot(x, u, 'k-', 'LineWidth', 2);
+title('Velocity');
+xlabel('x'); ylabel('u');
 grid on;
 
-subplot(2, 2, 2);
-plot(x, u, 'r-', 'LineWidth', 2);
-xlabel('x');
-ylabel('Velocity');
-title('Velocity Distribution');
-grid on;
+figure;
+% subplot(2, 2, 3);
+plot(x, p, 'k-', 'LineWidth', 2);
+title('Pressure');
+xlabel('x'); ylabel('p');
+grid on; ylim([0, 1.2]);
+%
+% subplot(2, 2, 4);
+% plot(x, E, 'm-', 'LineWidth', 2);
+% title('Total Energy');
+% xlabel('x'); ylabel('E');
+% grid on;
 
-subplot(2, 2, 3);
-plot(x, p, 'g-', 'LineWidth', 2);
-xlabel('x');
-ylabel('Pressure');
-title('Pressure Distribution');
-grid on;
-
-subplot(2, 2, 4);
-plot(x, E, 'm-', 'LineWidth', 2);
-xlabel('x');
-ylabel('Total Energy');
-title('Total Energy Distribution');
-grid on;
-
-sgtitle(sprintf('Riemann Shock Tube Solution at t = %.2f', t_history(end)));
-
-% Print some statistics
-fprintf('\nFinal Results:\n');
-fprintf('Density range: [%.6f, %.6f]\n', min(rho), max(rho));
-fprintf('Velocity range: [%.6f, %.6f]\n', min(u), max(u));
-fprintf('Pressure range: [%.6f, %.6f]\n', min(p), max(p));
-fprintf('Energy range: [%.6f, %.6f]\n', min(E), max(E));
+% title('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
 end
-
-
-
-
-
