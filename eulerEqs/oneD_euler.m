@@ -10,9 +10,9 @@ n_nodes = n_elements + 1;
 
 nGP = 2;
 
-CFL = 0.5773;
+% CFL = 0.5773;
 t_final = 0.2;
-niter = 3;
+% niter = 3;
 c_lapidus = 0.1;
 
 rho_L = 1.0; u_L = 0.0; p_L = 1.0;
@@ -32,17 +32,52 @@ for i = 1:n_nodes
 	U(:, i) = [rho; rho * u; rho * e];
 end
 
+% mass matrix
+M_global = zeros(3*n_nodes, 3*n_nodes);
+for elem = 1:n_elements
+	[gpts, gwts] = get_Gausspoints_1D(nGP);
+	M_elem = zeros(6, 6);
+	
+	Jac_elem = dx / 2;
+	
+	node1 = elem;
+	node2 = elem + 1;
+	dof1 = (node1-1)*3 + (1:3);
+	dof2 = (node2-1)*3 + (1:3);
+	global_dofs = [dof1, dof2];
+	
+	for gp = 1:nGP
+		xi = gpts(gp);
+		w = gwts(gp);
+		
+		N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+		dN_dxi = [-0.5, 0.5];
+		dN_dx = dN_dxi / Jac_elem;
+		% assembly
+		for i = 1:2
+			i_dofs = (i-1)*3 + (1:3);
+			for j = 1:2
+				j_dofs = (j-1)*3 + (1:3);
+				M_ij = N(i) * N(j) * eye(3) * Jac_elem * w;
+				M_elem(i_dofs, j_dofs) = M_elem(i_dofs, j_dofs) + M_ij;
+			end
+		end
+	end
+	M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
+	M_lumped = diag(sum(M_global, 2));
+end
+
 % time stepping
 t = 0.0;
+dt = 0.001;
 step = 0;
 while t < t_final
-	dt = calculate_timestep(U, dx, gamma, CFL);
 	if t + dt > t_final
 		dt = t_final - t;
 	end
 	
 	U_old = U;
-	U = euler_taylor_galerkin(U, dx, dt, gamma, niter, c_lapidus, nGP);
+	U = euler_taylor_galerkin(U, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped);
 	
 	if any(~isfinite(U(:)))
 		fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
@@ -84,14 +119,13 @@ dt = CFL * dx / max_speed;
 end
 
 %% euler taylor-galerkin method
-function U_new = euler_taylor_galerkin(U, dx, dt, gamma, niter, c_lapidus, nGP)
+function U_new = euler_taylor_galerkin(U, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped)
 n_nodes = size(U, 2);
 n_elements = n_nodes - 1;
 
 % flux, jacobians
-[F, A] = calculate_flux_jacobian(U, gamma);
+% [F, A] = calculate_flux_jacobian(U, gamma);
 
-M_global = sparse(3*n_nodes, 3*n_nodes);
 F_global = zeros(3*n_nodes, 1);
 
 for elem = 1:n_elements
@@ -99,26 +133,22 @@ for elem = 1:n_elements
 	node2 = elem + 1;
 	
 	U_elem = U(:, node1:node2);
-	F_elem = F(:, node1:node2);
-	A_elem = cat(3, A(:, :, node1), A(:, :, node2));
+	% F_elem = F(:, node1:node2);
+	% A_elem = cat(3, A(:, :, node1), A(:, :, node2));
 	
-	[M_elem, F_elem] = element_matrices(U_elem, F_elem, A_elem, dx, dt, gamma, nGP);
+	F_elem = force_matrices(U_elem, dx, dt, gamma, nGP);
 	
 	dof1 = (node1-1)*3 + (1:3);
 	dof2 = (node2-1)*3 + (1:3);
 	global_dofs = [dof1, dof2];
 	
-	M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
 	F_global(global_dofs) = F_global(global_dofs) + F_elem;
 end
 
 delta_U_global = zeros(3*n_nodes, 1);
-M_lumped = spdiags(sum(M_global, 2), 0, 3*n_nodes, 3*n_nodes);
 
-for iter = 1:niter
-	residual = F_global - M_global * delta_U_global;
-	delta_U_global = M_lumped \ residual;
-end
+residual = F_global - M_global * delta_U_global;
+delta_U_global = M_lumped \ residual;
 
 U_new = U;
 for i = 1:n_nodes
@@ -131,11 +161,9 @@ U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
 U_new = enforce_positivity(U_new, gamma);
 end
 
-function [M_elem, R_elem] = element_matrices(U_elem, F_elem, A_elem, dx, dt, gamma, nGP)
-
+function R_elem = force_matrices(U_elem, dx, dt, gamma, nGP)
 [gpts, gwts] = get_Gausspoints_1D(nGP);
 
-M_elem = zeros(6, 6);
 R_elem = zeros(6, 1);
 
 Jac_elem = dx / 2;
@@ -150,9 +178,10 @@ for gp = 1:nGP
 	
 	% U_gp = U_elem * N';
 	% F_gp = F_elem * N';
-    % calc flux and jac inside the gauss loop, mass matrix outside the time
-    % loop
+	% calc flux and jac inside the gauss loop, mass matrix outside the time
+	% loop
 	
+	[F_elem, A_elem] = calculate_flux_jacobian(U_elem, gamma);
 	% A_gp = 0.5 * (A_elem(:, :, 1) + A_elem(:, :, 2));
 	A_gp = A_elem(:, :, gp);
 	
@@ -165,41 +194,35 @@ for gp = 1:nGP
 	% assembly
 	for i = 1:2
 		i_dofs = (i-1)*3 + (1:3);
-		
 		R_elem(i_dofs) = R_elem(i_dofs) + rhs * N(i) * Jac_elem * w;
-		
-		% mass matrix
-		for j = 1:2
-			j_dofs = (j-1)*3 + (1:3);
-			M_ij = N(i) * N(j) * eye(3) * Jac_elem * w;
-			M_elem(i_dofs, j_dofs) = M_elem(i_dofs, j_dofs) + M_ij;
-		end
 	end
 end
 end
 
 %% Flux and Jacobian
 function [F, A] = calculate_flux_jacobian(U, gamma)
-n_nodes = size(U, 2);
+% n_nodes = size(U, 2);
+n_nodes = 1;
 F = zeros(3, n_nodes);
 A = zeros(3, 3, n_nodes);
 
-for i = 1:n_nodes
-	rho = max(U(1, i), 1e-10);
-	mom = U(2, i);
-	E = max(U(3, i), 1e-10);
-	
-	u = mom / rho;
-	p = (gamma - 1) * (E - 0.5 * rho * u^2);
-	p = max(p, 1e-10);
-	H = (E + p) / rho;
-	
-	F(:, i) = [mom; rho * u^2 + p; mom * H];
-	
-	A(:, :, i) = [0, 1, 0;
-		0.5*(gamma-3)*u^2, (3-gamma)*u, gamma-1;
-		u*(0.5*(gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
-end
+% for i = 1:n_nodes
+i = 1;
+rho = max(U(1, i), 1e-10);
+mom = U(2, i);
+E = max(U(3, i), 1e-10);
+
+u = mom / rho;
+p = (gamma - 1) * (E - 0.5 * rho * u^2);
+p = max(p, 1e-10);
+H = (E + p) / rho;
+
+F(:, 1) = [mom; rho * u^2 + p; mom * H];
+
+A(:, :, 1) = [0, 1, 0;
+	0.5*(gamma-3)*u^2, (3-gamma)*u, gamma-1;
+	u*(0.5*(gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
+% end
 end
 
 %% artificial viscosity lapidus
