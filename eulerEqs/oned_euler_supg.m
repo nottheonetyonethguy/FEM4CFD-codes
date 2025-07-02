@@ -34,6 +34,8 @@ end
 
 % mass matrix
 M_global = zeros(3*n_nodes, 3*n_nodes);
+F_global = zeros(3*n_nodes, 1);
+
 for elem = 1:n_elements
 	[gpts, gwts] = get_Gausspoints_1D(nGP);
 	M_elem = zeros(6, 6);
@@ -77,7 +79,7 @@ while t < t_final
 	end
 	
 	U_old = U;
-	U = euler_taylor_galerkin(U, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped);
+	U = euler_taylor_galerkin(U, F_global, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped);
 	
 	if any(~isfinite(U(:)))
 		fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
@@ -119,14 +121,14 @@ dt = CFL * dx / max_speed;
 end
 
 %% euler taylor-galerkin method
-function U_new = euler_taylor_galerkin(U, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped)
+function U_new = euler_taylor_galerkin(U, F_global, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped)
 n_nodes = size(U, 2);
 n_elements = n_nodes - 1;
 
 % flux, jacobians
 % [F, A] = calculate_flux_jacobian(U, gamma);
 
-F_global = zeros(3*n_nodes, 1);
+% F_global = zeros(3*n_nodes, 1);
 
 for elem = 1:n_elements
 	node1 = elem;
@@ -136,19 +138,18 @@ for elem = 1:n_elements
 	% F_elem = F(:, node1:node2);
 	% A_elem = cat(3, A(:, :, node1), A(:, :, node2));
 	
-	F_elem = force_matrices(U_elem, dx, dt, gamma, nGP);
+	R_elem = force_matrices(U_elem, dx, dt, gamma, nGP);
 	
 	dof1 = (node1-1)*3 + (1:3);
 	dof2 = (node2-1)*3 + (1:3);
 	global_dofs = [dof1, dof2];
 	
-	F_global(global_dofs) = F_global(global_dofs) + F_elem;
+	F_global(global_dofs) = F_global(global_dofs) + R_elem;
 end
 
 delta_U_global = zeros(3*n_nodes, 1);
 
-% residual = F_global - M_global * delta_U_global;
-residual = F_global - M_lumped * delta_U_global;
+residual = F_global - M_global * delta_U_global;
 delta_U_global = M_lumped \ residual;
 
 U_new = U;
@@ -157,7 +158,7 @@ for i = 1:n_nodes
 	U_new(:, i) = U(:, i) + delta_U_global(dofs);
 end
 
-U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
+% U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
 
 U_new = enforce_positivity(U_new, gamma);
 end
@@ -165,8 +166,9 @@ end
 function R_elem = force_matrices(U_elem, dx, dt, gamma, nGP)
 [gpts, gwts] = get_Gausspoints_1D(nGP);
 
-R_elem = zeros(6, 1);
-
+R_elem = zeros(3, 3);
+% K_global = zeros(3,3);
+% K_supg = zeros(3,3);
 Jac_elem = dx / 2;
 
 for gp = 1:nGP
@@ -182,16 +184,21 @@ for gp = 1:nGP
 	A_gp = A_elem(:, :, gp);
 	
 	% taylor-galerkin terms:
+	% stiffness matrix K
+	K_global = A_gp * (N * dN_dx') * Jac_elem * wt;
 	
-	dF_dx = F_elem * dN_dx';
-	
-	rhs = -dt * dF_dx + (dt^2 / 2) * A_gp * dF_dx;
-	
+	% supg terms
+	tau = calculateTau_SUPG(U_elem, dx, dt, gamma);
+	K_supg = tau * A_gp * ((N * dN_dx')/dt + A_gp * (dN_dx * dN_dx')) * Jac_elem * wt;
+	% dF_dx = F_elem * dN_dx';
+	% supg_term = tau * A_gp' * dN_dx' * dF_dx;
+	% rhs = -dt * dF_dx + (dt^2 / 2) * A_gp * dF_dx + supg_term;
+	R_elem = R_elem + K_global + K_supg;
 	% assembly
-	for i = 1:2
-		i_dofs = (i-1)*3 + (1:3);
-		R_elem(i_dofs) = R_elem(i_dofs) + rhs * N(i) * Jac_elem * wt;
-	end
+	% for i = 1:2
+	% 	i_dofs = (i-1)*3 + (1:3);
+	%   R_elem(i_dofs) = R_elem(i_dofs) + rhs * N(i) * Jac_elem * wt;
+	% end
 end
 end
 
@@ -269,6 +276,26 @@ for i = 1:n_nodes
 		U_pos(3, i) = p_min / (gamma - 1) + 0.5 * rho * u^2;
 	end
 end
+end
+
+%% stabilization parameter tau
+function tau = calculateTau_SUPG(U, dx, dt, gamma)
+tau = zeros(3,3);
+rho = max(U(1, :), 1e-10);
+mom = U(2, :);
+E = max(U(3, :), 1e-10);
+
+u = mom / rho;
+p = (gamma - 1) * (E - 0.5 * rho * u^2);
+p = max(p, 1e-10);
+c = sqrt(gamma * p / rho);
+h = dx;
+
+tau_sugn1 = h ./(2*(c + (abs(u))));
+tau_sugn2 = dt/2;
+k = 2/h;
+tau_i = k * (1/tau_sugn1^2 + 1/tau_sugn2^2)^(-0.5);
+tau = tau_i * eye(3);
 end
 
 %% Plot results
