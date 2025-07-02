@@ -187,7 +187,7 @@ for gp = 1:nGP
 	
 	% taylor-galerkin terms:
 	
-	dF_dx = F_elem * dN_dx';
+	dF_dx = F_elem * dN_dx;
 	
 	rhs = -dt * dF_dx + (dt^2 / 2) * A_gp * dF_dx;
 	
