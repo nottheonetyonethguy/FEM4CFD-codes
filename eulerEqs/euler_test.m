@@ -20,20 +20,21 @@ rho_R = 0.125; u_R = 0.0; p_R = 0.1;
 
 x = linspace(x_left, x_right, n_nodes);
 U = zeros(3, n_nodes);
+U_old = U;
 
 % initial conditions
 for i = 1:n_nodes
-	if x(i) <= x_interface
-		rho = rho_L; u = u_L; p = p_L;
-	else
-		rho = rho_R; u = u_R; p = p_R;
-	end
-	e = p / ((gamma - 1) * rho) + 0.5 * u^2;
-	U(:, i) = [rho; rho * u; rho * e];
+		if x(i) <= x_interface
+			rho = rho_L; u = u_L; p = p_L;
+		else
+			rho = rho_R; u = u_R; p = p_R;
+		end
+		e = p / ((gamma - 1) * rho) + 0.5 * u^2;
+		U(:, i) = [rho; rho * u; rho * e];
 end
 
 % mass matrix
-M_global = zeros(3*n_nodes, 3*n_nodes);
+M_global = zeros(3 * n_nodes, 3 * n_nodes);
 for elem = 1:n_elements
 	[gpts, gwts] = get_Gausspoints_1D(nGP);
 	M_elem = zeros(6, 6);
@@ -42,29 +43,21 @@ for elem = 1:n_elements
 	
 	node1 = elem;
 	node2 = elem + 1;
-	dof1 = (node1-1)*3 + (1:3);
-	dof2 = (node2-1)*3 + (1:3);
-	global_dofs = [dof1, dof2];
 	
 	for gp = 1:nGP
 		xi = gpts(gp);
-		w = gwts(gp);
+		wt = gwts(gp);
 		
 		N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
 		dN_dxi = [-0.5, 0.5];
 		dN_dx = dN_dxi / Jac_elem;
 		% assembly
 		for i = 1:2
-			i_dofs = (i-1)*3 + (1:3);
 			for j = 1:2
-				j_dofs = (j-1)*3 + (1:3);
-				M_ij = N(i) * N(j) * eye(3) * Jac_elem * w;
-				M_elem(i_dofs, j_dofs) = M_elem(i_dofs, j_dofs) + M_ij;
+				M_ij = N(i) * N(j) * eye(3) * Jac_elem * wt;
 			end
 		end
 	end
-	M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
-	M_lumped = diag(sum(M_global, 2));
 end
 
 % time stepping
@@ -76,9 +69,44 @@ while t < t_final
 		dt = t_final - t;
 	end
 	
-	U_old = U;
-	U = euler_taylor_galerkin(U, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped);
+	RHS = zeros(3, n_nodes);
+	for elem = 1:n_elements
+		UL = U(:, elem);
+		UR = U(:, elem+1);
+		
+		[gpts, gwts] = get_Gausspoints_1D(nGP);
+		for gp = 1:nGP
+			xi = gpts(gp);
+			wt = gwts(gp);
+			
+			N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+			dN_dxi = [-0.5, 0.5];
+			Jac_elem = dx / 2 ;
+			dN_dx = dN_dxi / Jac_elem;
+			u = N(1) * UL + N(2) * UR;
+			[F, A] = calculate_flux_jacobian(u, gamma);
+			flux_term = (F * dN_dx) * Jac_elem * wt;
+			RHS(:, elem) = RHS(:, elem) - flux_term(:, 1);
+			RHS(:, elem+1) = RHS(:, elem+1) - flux_term(:, 2);
+			% viscosity
+			ux = [UL, UR] * dN_dx';
+			visc = (A^2) * ux;
+			visc_term = 0.5 * dt * (visc * dN_dx) * Jac_elem * wt;
+			RHS(:, elem) = RHS(:, elem) + visc_term(:, 1);
+			RHS(:, elem+1) = RHS(:, elem+1) + visc_term(:, 2);
+		end
+	end
 	
+	[Fl, Al] = calculate_flux_jacobian(U(:, 1), gamma); % left boundary
+	[Fr, Ar] = calculate_flux_jacobian(U(:, end), gamma); % right boundary
+	% for left boundary
+	bl_t = (Fl + dt * 0.5 * (A * Fl) ) * N;
+	br_t = (Fr + dt * 0.5 * (A * Fr) ) * N;
+	% boundary_term = br_t - bl_t;
+	RHS(:, 1) = RHS(:, 1) - (bl_t);
+	RHS(:, end) = RHS(:, end) + (br_t);
+	
+	U = U + dt * (RHS \ M_lumped);
 	if any(~isfinite(U(:)))
 		fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
 		U = U_old;
@@ -196,38 +224,23 @@ end
 end
 
 %% Flux and Jacobian
-function [F, A] = calculate_flux_jacobian(U, gamma, N)
-% n_nodes = size(U, 2);
-n_nodes = 2;
-F = zeros(3, n_nodes);
-A = zeros(3, 3, n_nodes);
+function [F, A] = calculate_flux_jacobian(U, gamma)
+F = zeros(3, 1);
+A = zeros(3, 3);
 
-% for i = 1:n_nodes
-q1_1 = max(U(1, 1), 1e-10); % rho
-q1_2= max(U(1, 2), 1e-10); % rho
-q1 = q1_1 * N(1) + q1_2 * N(2);
-
-q2_1 = U(2, 1); % mom
-q2_2 = U(2, 2); % mom
-q2 = q2_1 * N(1) + q2_2 * N(2);
-
-q3_1 = max(U(3, 1), 1e-10); % energy
-q3_2 = max(U(3, 2), 1e-10); % energy
-q3 = q3_1 * N(1) + q3_2 * N(2);
+q1 = U(1, 1); % rho
+q2 = U(2, 1); % momentum ,rho u
+q3 = U(3, 1); % energy, rho e
 
 u = q2 / q1;
-p = (gamma - 1) * (q3 - 0.5 * q1 * u^2);
-p = max(p, 1e-10);
-H = (q3 + p) / q1;
+p = (gamma - 1) * (q3 - 0.5 * q2 * u);
+H = (q3 + p)/q1;
 
+F = [q2; q2 * u + p; (q3 + p) * u];
+A = [0, 1, 0; ...
+	0.5 * (gamma - 3)* u^2, (3 - gamma) * u, gamma - 1; ...
+	u * (0.5 * (gamma - 1) * u^2 - H), H - (gamma - 1) * u^2, gamma * u];
 
-for i = 1:n_nodes
-	F(:, i) = [q2; q1 * u^2 + p; q2 * H];
-	
-	A(:, :, i) = [0, 1, 0;
-		0.5*(gamma-3)*u^2, (3-gamma)*u, gamma-1;
-		u*(0.5*(gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
-end
 end
 
 %% artificial viscosity lapidus
