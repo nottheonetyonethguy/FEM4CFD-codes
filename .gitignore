@@ -17,4 +17,6 @@ test1.m
 twoDimensional/*.inp
 twoDimensional/*.vtk
 eulerEqs/test.m
+eulerEqs/euler_test.m
+eulerEqs/test_supg.m
 eulerEqs/*.asv
