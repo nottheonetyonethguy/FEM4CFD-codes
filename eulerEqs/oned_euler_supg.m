@@ -1,8 +1,8 @@
 % parameters
 gamma = 1.4;
 x_left = 0.0;
-x_right = 10.0;
-x_interface = 5.0;
+x_right = 1.0;
+x_interface = 0.50;
 
 n_elements = 100;
 dx = (x_right - x_left) / n_elements;
@@ -10,9 +10,7 @@ n_nodes = n_elements + 1;
 
 nGP = 2;
 
-% CFL = 0.5773;
 t_final = 0.2;
-% niter = 3;
 c_lapidus = 0.1;
 
 rho_L = 1.0; u_L = 0.0; p_L = 1.0;
@@ -31,10 +29,10 @@ for i = 1:n_nodes
 	e = p / ((gamma - 1) * rho) + 0.5 * u^2;
 	U(:, i) = [rho; rho * u; rho * e];
 end
+U_L = U(:, 1); U_R = U(:, end);
 
 % mass matrix
 M_global = zeros(3*n_nodes, 3*n_nodes);
-F_global = zeros(3*n_nodes, 1);
 
 for elem = 1:n_elements
 	[gpts, gwts] = get_Gausspoints_1D(nGP);
@@ -66,8 +64,8 @@ for elem = 1:n_elements
 		end
 	end
 	M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
-	M_lumped = diag(sum(M_global, 2));
 end
+% M_lumped = diag(sum(M_global, 2));
 
 % time stepping
 t = 0.0;
@@ -78,17 +76,53 @@ while t < t_final
 		dt = t_final - t;
 	end
 	
-	U_old = U;
-	U = euler_taylor_galerkin(U, F_global, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped);
+	K_global = zeros(3*n_nodes, 3*n_nodes);
+	for elem = 1:n_elements
+		node1 = elem; node2 = elem+1;
+		UL = U(:, node1); UR = U(:, node2);
+		[gpts, gwts] = get_Gausspoints_1D(nGP);
+		Jac_elem = dx / 2;
+		
+		K_elem = zeros(6, 6); RHS_elem = zeros(6, 1);
+		dof1 = (node1 - 1) * 3 + (1:3); dof2 = (node2 - 1) * 3 + (1:3);
+		global_dofs = [dof1, dof2];
+		
+		for gp = 1:nGP
+			xi = gpts(gp);
+			wt = gwts(gp);
+			
+			N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+			dN_dxi = [-0.5, 0.5];
+			dN_dx = dN_dxi / Jac_elem;
+			u_gp = N(1) * UL + N(2) * UR;
+			% stiffness matrix
+			[F, A] = calculate_flux_jacobian(u_gp, gamma);
+			tau = calculateTau_SUPG(u_gp, dx, dt, gamma);
+			for i = 1:2
+				i_dofs = (i - 1) * 3 + (1:3);
+				for j = 1:2
+					j_dofs = (j - 1) * 3 + (1:3);
+					K_ij = N(i) * A * dN_dx(j) * Jac_elem * wt;
+					K_ij_supg = tau * (A * dN_dx(i))' * (A *dN_dx(j)) * Jac_elem * wt;
+					K_elem(i_dofs, j_dofs) = K_elem(i_dofs, j_dofs) + K_ij + K_ij_supg;
+				end
+			end
+		end
+		residual = (u_gp - u_old_gp) / dt + A * (u_gp * dN_dx);
+		K_global(global_dofs, global_dofs) = K_global(global_dofs, global_dofs) + K_elem;
+	end
+	
+	LHS = (1/dt) * M_global + K_global;
+	RHS = (1/dt) * M_global * U(:);
+	
+	U_new = LHS \ RHS;
+	U = reshape(U_new, 3, n_nodes);
+	
+	U(: ,1) = U_L; U(:, end) = U_R;
 	
 	if any(~isfinite(U(:)))
 		fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
-		U = U_old;
-		dt = dt * 0.5;
-		if dt < 1e-10
-			error('Time step too small, simulation failed');
-		end
-		continue;
+		break;
 	end
 	
 	% time update
@@ -99,68 +133,24 @@ end
 
 plot_results(x, U, gamma);
 
-%% calculate time step based on CFL condition
-function dt = calculate_timestep(U, dx, gamma, CFL)
-n_nodes = size(U, 2);
-max_speed = 0;
-for i = 1:n_nodes
-	rho = U(1, i);
-	if rho <= 0
-		rho = 1e-10;
-	end
-	u = U(2, i) / rho;
-	E = U(3, i);
-	p = (gamma - 1) * (E - 0.5 * rho * u^2);
-	if p <= 0
-		p = 1e-10;
-	end
-	c = sqrt(gamma * p / rho);
-	max_speed = max(max_speed, abs(u) + c);
-end
-dt = CFL * dx / max_speed;
-end
+%% Flux and Jacobian
+function [F, A] = calculate_flux_jacobian(U, gamma)
+F = zeros(3, 1);
+A = zeros(3, 3);
 
-%% euler taylor-galerkin method
-function U_new = euler_taylor_galerkin(U, F_global, dx, dt, gamma, c_lapidus, nGP, M_global, M_lumped)
-n_nodes = size(U, 2);
-n_elements = n_nodes - 1;
+q1 = max(U(1, 1), 1e-10); % rho
+q2 = U(2, 1); % momentum ,rho u
+q3 = U(3, 1); % energy, rho e
 
-% flux, jacobians
-% [F, A] = calculate_flux_jacobian(U, gamma);
+u = q2 / q1;
+p = (gamma - 1) * (q3 - 0.5 * q2 * u);
+H = (q3 + p) / q1;
 
-% F_global = zeros(3*n_nodes, 1);
+F = [q2; q2 * u + p; (q3 + p) * u];
+A = [0, 1, 0; ...
+	0.5 * (gamma - 3) * u ^ 2, (3 - gamma) * u, gamma - 1; ...
+	u * (0.5 * (gamma - 1) * u ^ 2 - H), H - (gamma - 1) * u ^ 2, gamma * u];
 
-for elem = 1:n_elements
-	node1 = elem;
-	node2 = elem + 1;
-	
-	U_elem = U(:, node1:node2);
-	% F_elem = F(:, node1:node2);
-	% A_elem = cat(3, A(:, :, node1), A(:, :, node2));
-	
-	R_elem = force_matrices(U_elem, dx, dt, gamma, nGP);
-	
-	dof1 = (node1-1)*3 + (1:3);
-	dof2 = (node2-1)*3 + (1:3);
-	global_dofs = [dof1, dof2];
-	
-	F_global(global_dofs) = F_global(global_dofs) + R_elem;
-end
-
-delta_U_global = zeros(3*n_nodes, 1);
-
-residual = F_global - M_global * delta_U_global;
-delta_U_global = M_lumped \ residual;
-
-U_new = U;
-for i = 1:n_nodes
-	dofs = (i-1)*3 + (1:3);
-	U_new(:, i) = U(:, i) + delta_U_global(dofs);
-end
-
-% U_new = apply_artificial_viscosity(U_new, dx, c_lapidus);
-
-U_new = enforce_positivity(U_new, gamma);
 end
 
 function R_elem = force_matrices(U_elem, dx, dt, gamma, nGP)
@@ -202,82 +192,6 @@ for gp = 1:nGP
 end
 end
 
-%% Flux and Jacobian
-function [F, A] = calculate_flux_jacobian(U, gamma)
-% n_nodes = size(U, 2);
-n_nodes = 2;
-F = zeros(3, n_nodes);
-A = zeros(3, 3, n_nodes);
-
-for i = 1:n_nodes
-	rho = max(U(1, i), 1e-10);
-	mom = U(2, i);
-	E = max(U(3, i), 1e-10);
-	
-	u = mom / rho;
-	p = (gamma - 1) * (E - 0.5 * rho * u^2);
-	p = max(p, 1e-10);
-	H = (E + p) / rho;
-	
-	F(:, i) = [mom; rho * u^2 + p; mom * H];
-	
-	A(:, :, i) = [0, 1, 0;
-		0.5*(gamma-3)*u^2, (3-gamma)*u, gamma-1;
-		u*(0.5*(gamma-1)*u^2 - H), H - (gamma-1)*u^2, gamma*u];
-end
-end
-
-%% artificial viscosity lapidus
-function U_smooth = apply_artificial_viscosity(U, dx, c_lapidus)
-n_nodes = size(U, 2);
-U_smooth = U;
-
-for i = 2:n_nodes-1
-	rho_L = max(U(1, i-1), 1e-10);
-	rho_R = max(U(1, i+1), 1e-10);
-	rho_C = max(U(1, i), 1e-10);
-	
-	gamma = 1.4;
-	p_L = (gamma - 1) * (U(3, i-1) - 0.5 * U(2, i-1)^2 / rho_L);
-	p_R = (gamma - 1) * (U(3, i+1) - 0.5 * U(2, i+1)^2 / rho_R);
-	p_C = (gamma - 1) * (U(3, i) - 0.5 * U(2, i)^2 / rho_C);
-	
-	dp_dx = abs(p_R - p_L) / (2 * dx);
-	p_avg = (p_L + p_R + p_C) / 3;
-	
-	if dp_dx > 0.1 * p_avg / dx
-		epsilon = c_lapidus * dx^2 * dp_dx;
-		for var = 1:3
-			U_smooth(var, i) = U(var, i) + epsilon * ...
-				(U(var, i+1) - 2*U(var, i) + U(var, i-1)) / dx^2;
-		end
-	end
-end
-end
-
-%% positivity (density and pressure)
-function U_pos = enforce_positivity(U, gamma)
-U_pos = U;
-n_nodes = size(U, 2);
-
-for i = 1:n_nodes
-	rho_min = 1e-10;
-	p_min = 1e-10;
-	
-	U_pos(1, i) = max(U_pos(1, i), rho_min);
-	
-	rho = U_pos(1, i);
-	mom = U_pos(2, i);
-	E = U_pos(3, i);
-	p = (gamma - 1) * (E - 0.5 * mom^2 / rho);
-	
-	if p <= p_min
-		u = mom / rho;
-		U_pos(3, i) = p_min / (gamma - 1) + 0.5 * rho * u^2;
-	end
-end
-end
-
 %% stabilization parameter tau
 function tau = calculateTau_SUPG(U, dx, dt, gamma)
 tau = zeros(3,3);
@@ -306,31 +220,29 @@ E = U(3, :);
 p = (gamma - 1) * (E - 0.5 * rho .* u.^2);
 
 figure;
-% subplot(2, 2, 1);
+subplot(2, 2, 1);
 plot(x, rho, 'k-', 'LineWidth', 2);
 title('Density');
 xlabel('x'); ylabel('\rho');
 grid on; ylim([0, 1.2]);
 
-% subplot(2, 2, 2);
-figure;
+subplot(2, 2, 2);
 plot(x, u, 'k-', 'LineWidth', 2);
 title('Velocity');
 xlabel('x'); ylabel('u');
 grid on;
 
-figure;
-% subplot(2, 2, 3);
+subplot(2, 2, 3);
 plot(x, p, 'k-', 'LineWidth', 2);
 title('Pressure');
 xlabel('x'); ylabel('p');
 grid on; ylim([0, 1.2]);
-%
-% subplot(2, 2, 4);
-% plot(x, E, 'm-', 'LineWidth', 2);
-% title('Total Energy');
-% xlabel('x'); ylabel('E');
-% grid on;
 
-% title('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
+subplot(2, 2, 4);
+plot(x, E, 'm-', 'LineWidth', 2);
+title('Total Energy');
+xlabel('x'); ylabel('E');
+grid on;
+
+sgtitle('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
 end
