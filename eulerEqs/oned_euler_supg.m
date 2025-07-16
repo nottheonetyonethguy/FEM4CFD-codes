@@ -99,11 +99,11 @@ while t < t_final
 			dN_dxi = [-0.5, 0.5];
 			dN_dx = dN_dxi / Jac_elem;
 			u_gp = N(1) * UL + N(2) * UR;
-            du_gp = [UL(2, :), UR(2, :)] * dN_dx';
+			du_gp = [UL(2, :), UR(2, :)] * dN_dx';
 			% stiffness matrix
 			[F, A] = calculate_flux_jacobian(u_gp, gamma);
-			tau = calculateTau_SUPG(u_gp, du_gp, dx, dt, Jac_elem, dN_dx, gamma);
-            % tau = 0.002;
+			tau = calculateTau_SUPG(u_gp, dx, dt, Jac_elem, dN_dx, gamma);
+			% tau = 0.002;
 			for i = 1:2
 				i_dofs = (i - 1) * 3 + (1:3);
 				for j = 1:2
@@ -173,11 +173,12 @@ end
 
 
 %% stabilization parameter tau
-function tau = calculateTau_SUPG(U, du_gp, dx, dt, Jac_elem, dN_dx, gamma)
+function tau = calculateTau_SUPG(U, dx, dt, Jac_elem, dN_dx, gamma)
 % tau = zeros(3,3);
 q1 = max(U(1, 1), 1e-10); % rho
-q2 = U(2, 1); % momentum ,rho u
+q2 = U(2, 1); % momentum ,rho
 q3 = U(3, 1); % energy, rho e
+
 
 u = q2 / q1;
 p = max((gamma - 1) * (q3 - 0.5 * q2 * u), 1e-10);
@@ -185,16 +186,19 @@ H = (q3 + p) / q1;
 
 c = sqrt(gamma * p / q1);
 h = dx;
+
+du_dx = u * dN_dx(1) + u * dN_dx(2);
+
 %% spectral
 % tau_sugn1 = 1/(abs(u) * abs(dN_dx(1))) + (abs(u)* abs(dN_dx(2)));
 tau_sugn2 = dt/2;
 k = 1/Jac_elem;
 if u == 0
-    tau_sugn1 = 0;
-    tau_i = (1/tau_sugn2^2)^(-0.5);
-else 
-    tau_sugn1 = 1/(norm(du_gp));
-    tau_i = (1/tau_sugn1^2 + (1/tau_sugn2)^2)^(-0.5);
+	% tau_sugn1 = 0;
+	tau_i = (1/tau_sugn2^2)^(-0.5);
+else
+	tau_sugn1 = 1/(norm(du_dx));
+	tau_i = (1/tau_sugn1^2 + (1/tau_sugn2)^2)^(-0.5);
 end
 
 % tau_i = h / 2* (abs(u) + c);
