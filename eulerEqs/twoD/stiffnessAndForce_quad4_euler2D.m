@@ -1,5 +1,7 @@
  function [Klocal, Flocal] = stiffnessAndForce_quad4_AdvDiff2D(nodeNums, node_coords, force_applied, elemData, matData, soln_full, soln_full_prev)
 
+ % soln_full = u
+
 npElem = size(nodeNums, 2); % number of points in an element
 
 xNode = node_coords(nodeNums, 1); % x and y coordinates in the global frame
@@ -10,13 +12,7 @@ he = xNode(2) - xNode(1); % element length
 soln_elem = soln_full(nodeNums); % elemental solution, 4x1 vector
 soln_elem_prev = soln_full_prev(nodeNums);
 
-mu = matData(1, 1);
-ax = matData(1, 2);
-ay = matData(1, 3);
-avec = [ax; ay];
-s = matData(1, 4);
-% s = 1;
-f = matData(1, 5);
+gamma = matData(1, 1);
 
 if (npElem == 3)
 	nGP = 1;
@@ -39,8 +35,7 @@ end
 % discrete gradient-field matrix
 G = zeros(2, npElem);
 
-Klocal = zeros(npElem, npElem);
-Flocal = zeros(npElem, 1);
+Klocal = zeros(8, 8);
 
 param = [0.0; 0.0];
 

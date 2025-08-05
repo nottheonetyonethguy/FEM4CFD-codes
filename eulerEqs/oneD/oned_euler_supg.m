@@ -76,7 +76,8 @@ while t < t_final
 	end
 	K_global = zeros(3*n_nodes, 3*n_nodes);
 	K_supg_global = zeros(3*n_nodes, 3*n_nodes);
-	M_supg_global = zeros(3*n_nodes, 3*n_nodes);
+	K_sc_global = zeros(3*n_nodes, 3*n_nodes);
+    M_supg_global = zeros(3*n_nodes, 3*n_nodes);
 	% counter = 0;
 	for elem = 1:n_elements
 		node1 = elem; node2 = elem+1;
@@ -86,6 +87,7 @@ while t < t_final
 		
 		K_elem = zeros(6, 6);
 		K_supg_elem = zeros(6, 6);
+        K_sc_elem = zeros(6, 6);
 		M_supg_elem = zeros(6, 6);
 		% RHS_elem = zeros(6, 1);
 		dof1 = (node1 - 1) * 3 + (1:3); dof2 = (node2 - 1) * 3 + (1:3);
@@ -99,10 +101,10 @@ while t < t_final
 			dN_dxi = [-0.5, 0.5];
 			dN_dx = dN_dxi / Jac_elem;
 			u_gp = N(1) * UL + N(2) * UR;
-			du_gp = [UL(2, :), UR(2, :)] * dN_dx';
+			% du_gp = [UL(2, :), UR(2, :)] * dN_dx';
 			% stiffness matrix
 			[F, A] = calculate_flux_jacobian(u_gp, gamma);
-			tau = calculateTau_SUPG(u_gp, dx, dt, Jac_elem, dN_dx, gamma);
+			tau = calculateTau_SUPG(UL, UR, dx, dt, Jac_elem, N, dN_dx, gamma);
 			% tau = 0.002;
 			for i = 1:2
 				i_dofs = (i - 1) * 3 + (1:3);
@@ -122,19 +124,37 @@ while t < t_final
 					K_ij_supg = tau * (A * dN_dx(i))' * (A * dN_dx(j)) * Jac_elem * wt;
 					K_supg_elem(i_dofs, j_dofs) = K_supg_elem(i_dofs, j_dofs) + K_ij_supg;
 				end
-			end
+            end
+            % shock capturing
+            for i = 1:2
+				i_dofs = (i - 1) * 3 + (1:3);
+				for j = 1:2
+					j_dofs = (j - 1) * 3 + (1:3);
+					K_ij_sc = tau * (dN_dx(i) * dN_dx(j)) * Jac_elem * wt * eye(3);
+					K_sc_elem(i_dofs, j_dofs) = K_sc_elem(i_dofs, j_dofs) + K_ij_sc;
+				end
+            end
+
 			% counter = counter + 1;
 		end
 		M_supg_global(global_dofs, global_dofs) = M_supg_global(global_dofs, global_dofs) + M_supg_elem;
 		K_global(global_dofs, global_dofs) = K_global(global_dofs, global_dofs) + K_elem;
 		K_supg_global(global_dofs, global_dofs) = K_supg_global(global_dofs, global_dofs) + K_supg_elem;
+        K_sc_global(global_dofs, global_dofs) = K_sc_global(global_dofs, global_dofs) + K_sc_elem;
 	end
 	
-	LHS = (1/dt) * (M_global + M_supg_global) + (K_global + K_supg_global);
+    dofs_free = 4:(n_nodes * 3 - 3);
+
+	LHS = (1/dt) * (M_global + M_supg_global) + (K_global + K_supg_global + K_sc_global);
 	RHS = (1/dt) * (M_global + M_supg_global) * U(:);
+
+    RHS = RHS - LHS(:, 1) * U(1, 1) - LHS(:, 2) * U(2, 1) - LHS(:, 3) * U(3, 1);
+    RHS = RHS - LHS(:, end-2) * U(1, end) - LHS(:, end-1) * U(2, end) - LHS(:, end) * U(3, end);
+    
+    
 	
-	U_new = LHS \ RHS;
-	U = reshape(U_new, 3, n_nodes);
+	U_new = LHS(dofs_free, dofs_free) \ RHS(dofs_free);
+	U(:, 2:end-1) = reshape(U_new, 3, n_nodes-2);
 	
 	U(: ,1) = U_L; U(:, end) = U_R;
 	
@@ -173,8 +193,10 @@ end
 
 
 %% stabilization parameter tau
-function tau = calculateTau_SUPG(U, dx, dt, Jac_elem, dN_dx, gamma)
+function tau = calculateTau_SUPG(UL, UR, dx, dt, Jac_elem, N, dN_dx, gamma)
 % tau = zeros(3,3);
+
+U = N(1) * UL + N(2) * UR; % u_gp
 q1 = max(U(1, 1), 1e-10); % rho
 q2 = U(2, 1); % momentum ,rho
 q3 = U(3, 1); % energy, rho e
@@ -224,12 +246,12 @@ tau = tau_i * eye(3);
 % [R, lambda] = eig(A);
 % tau = (0.5 * h) * (R * abs(inv(lambda)) * inv(R));
 % tau = (0.5 * h) * (R * inv(abs(lambda)) * R_inv);
+
+%% catabriga
+
 end
 
 % function delta_hp = calculateSCterm(U, U_old, U_L, dx, dt, Jac_elem, dN_dx, gamma)
-% Y = diag(U_L);
-% [F, A] = calculate_flux_jacobian(U, gamma);
-% Z = (U - U_old)/dt + A
 % end
 
 %% Plot results

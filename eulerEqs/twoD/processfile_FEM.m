@@ -1,4 +1,5 @@
-function [ndim, ndof, nnode, nelem, npelem, totaldof, node_coords, elem_node_conn, matData, elemData, elem_dof_conn, dofs_fixed, dofs_free, soln_applied, soln_full, force_applied] = processfile_FEM(fname)
+
+function [ndim, ndof, nnode, nelem, npelem, totaldof, node_coords, elem_node_conn, matData, elemData, elem_dof_conn, init_soln, dofs_fixed, dofs_free, soln_applied, soln_full, force_applied] = processfile_FEM(fname)
 clc
 % node_coords: global coordinates of the nodes, x, y, and z
 % nelem: total number of elements
@@ -31,14 +32,14 @@ totaldof = nnode*ndof;
 
 node_coords = zeros(nnode,ndim);
 for i=1:nnode
-	line = fgets(fid);
-	linestr = strsplit(line, ",");
-	
-	node_coords(i,1) = double(str2num(linestr{1,2}));
-	node_coords(i,2) = double(str2num(linestr{1,3}));
-	if(ndim == 3)
-		node_coords(i,3) = double(str2num(linestr{1,4}));
-	end
+		line = fgets(fid);
+		linestr = strsplit(line, ",");
+		
+		node_coords(i,1) = double(str2num(linestr{1,2}));
+		node_coords(i,2) = double(str2num(linestr{1,3}));
+		if(ndim == 3)
+				node_coords(i,3) = double(str2num(linestr{1,4}));
+		end
 end
 
 
@@ -50,12 +51,12 @@ nmatData = int32(str2num(linestr{1,2}));
 
 matData = zeros(nmatData, 20);
 for i=1:nmatData
-	line = fgets(fid);
-	linestr = strsplit(line, ",");
-	
-	for j=1:size(linestr,2)-1
-		matData(i,j) = double(str2num(linestr{1,j+1}));
-	end
+		line = fgets(fid);
+		linestr = strsplit(line, ",");
+		
+		for j=1:size(linestr,2)-1
+				matData(i,j) = double(str2num(linestr{1,j+1}));
+		end
 end
 
 
@@ -67,12 +68,12 @@ nelemData = int32(str2num(linestr{1,2}));
 
 elemData = zeros(nelemData, 20);
 for i=1:nelemData
-	line = fgets(fid);
-	linestr = strsplit(line, ",");
-	
-	for j=1:size(linestr,2)-1
-		elemData(i,j) = double(str2num(linestr{1,j+1}));
-	end
+		line = fgets(fid);
+		linestr = strsplit(line, ",");
+		
+		for j=1:size(linestr,2)-1
+				elemData(i,j) = double(str2num(linestr{1,j+1}));
+		end
 end
 
 
@@ -91,12 +92,36 @@ nelem = int32(str2num(linestr{1,2}));
 
 elem_node_conn = zeros(nelem, npelem, "int32");
 for i=1:nelem
-	line = fgets(fid);
-	linestr = strsplit(line, ",");
-	
-	for j=1:npelem
-		elem_node_conn(i,j) = int32(str2num(linestr{1,3+j}));
-	end
+		line = fgets(fid);
+		linestr = strsplit(line, ",");
+		
+		for j=1:npelem
+				elem_node_conn(i,j) = int32(str2num(linestr{1,3+j}));
+		end
+end
+
+% initial conditions of u
+
+line=fgets(fid);
+linestr = strsplit(line, ",");
+nINIT    = int32(str2num(linestr{1,2}));
+
+gamma = matData(1,1);
+
+ninit = zeros(nINIT, 1, "int32");
+init_soln = zeros(4, totaldof);
+for i=1:nINIT
+		line = fgets(fid);
+		linestr = strsplit(line, ",");
+		
+		n1 = int32(str2num(linestr{1,1}));
+		n2 = int32(str2num(linestr{1,2}));
+		n3 = double(str2num(linestr{1,3})); % rho
+		n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
+		n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
+		n6 = double(str2num(linestr{1,6})); % pressure
+		E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
+		init_soln(:, i) = double([n3 rho_u rho_v E]);
 end
 
 % Dirichlet boundary conditions
@@ -105,16 +130,23 @@ line=fgets(fid);
 linestr = strsplit(line, ",");
 nDBC    = int32(str2num(linestr{1,2}));
 
+gamma = matData(1,1);
+
 dofs_fixed = zeros(nDBC, 1, "int32");
-soln_applied = zeros(totaldof, 1);
+soln_applied = zeros(4, totaldof);
 for i=1:nDBC
 	line = fgets(fid);
 	linestr = strsplit(line, ",");
 	
 	n1 = int32(str2num(linestr{1,1}));
 	n2 = int32(str2num(linestr{1,2}));
+	n3 = double(str2num(linestr{1,3})); % rho
+	n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
+	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
+	n6 = double(str2num(linestr{1,6})); % pressure
+	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
 	dofs_fixed(i) = (n1-1)*ndof+n2;
-	soln_applied(dofs_fixed(i)) = double(str2num(linestr{1,3}));
+	soln_applied(:, dofs_fixed(i)) = double([n3 rho_u rho_v E]);
 end
 
 dofs_free = setdiff([1:totaldof], dofs_fixed)';
