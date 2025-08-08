@@ -1,7 +1,7 @@
 % function [] = meshgen(ndim, ndof, xL, xR, yL, yR, n_elem, matdata, k, ux, uy, elemdata, e1, e2, npelem, nforce)
 clc; clear; % close all;
 ndim = 2; % no of dimensions
-ndof = 1; % no of dofs
+ndof = 4; % no of dofs
 n_elem_x = 20; % no of elements x direction
 n_elem_y = 4; % no of elements y direction
 nnode = (n_elem_x + 1) * (n_elem_y + 1);

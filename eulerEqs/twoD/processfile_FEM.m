@@ -20,7 +20,8 @@ ndim = int32(str2num(linestr{1,2}))
 
 line=fgets(fid);
 linestr = strsplit(line, ",");
-ndof = int32(str2num(linestr{1,2}))
+ndof = int32(str2num(linestr{1,2}));
+n_dof = 1;
 
 % nodes
 
@@ -28,7 +29,7 @@ line=fgets(fid);
 linestr = strsplit(line, ",");
 nnode = int32(str2num(linestr{1,2}))
 
-totaldof = nnode*ndof;
+totaldof = nnode*n_dof;
 
 node_coords = zeros(nnode,ndim);
 for i=1:nnode
@@ -38,7 +39,7 @@ for i=1:nnode
 		node_coords(i,1) = double(str2num(linestr{1,2}));
 		node_coords(i,2) = double(str2num(linestr{1,3}));
 		if(ndim == 3)
-				node_coords(i,3) = double(str2num(linestr{1,4}));
+			node_coords(i,3) = double(str2num(linestr{1,4}));
 		end
 end
 
@@ -51,12 +52,12 @@ nmatData = int32(str2num(linestr{1,2}));
 
 matData = zeros(nmatData, 20);
 for i=1:nmatData
-		line = fgets(fid);
-		linestr = strsplit(line, ",");
-		
-		for j=1:size(linestr,2)-1
-				matData(i,j) = double(str2num(linestr{1,j+1}));
-		end
+	line = fgets(fid);
+	linestr = strsplit(line, ",");
+	
+	for j=1:size(linestr,2)-1
+		matData(i,j) = double(str2num(linestr{1,j+1}));
+	end
 end
 
 
@@ -68,12 +69,12 @@ nelemData = int32(str2num(linestr{1,2}));
 
 elemData = zeros(nelemData, 20);
 for i=1:nelemData
-		line = fgets(fid);
-		linestr = strsplit(line, ",");
-		
-		for j=1:size(linestr,2)-1
-				elemData(i,j) = double(str2num(linestr{1,j+1}));
-		end
+	line = fgets(fid);
+	linestr = strsplit(line, ",");
+	
+	for j=1:size(linestr,2)-1
+		elemData(i,j) = double(str2num(linestr{1,j+1}));
+	end
 end
 
 
@@ -92,12 +93,12 @@ nelem = int32(str2num(linestr{1,2}));
 
 elem_node_conn = zeros(nelem, npelem, "int32");
 for i=1:nelem
-		line = fgets(fid);
-		linestr = strsplit(line, ",");
-		
-		for j=1:npelem
-				elem_node_conn(i,j) = int32(str2num(linestr{1,3+j}));
-		end
+	line = fgets(fid);
+	linestr = strsplit(line, ",");
+	
+	for j=1:npelem
+		elem_node_conn(i,j) = int32(str2num(linestr{1,3+j}));
+	end
 end
 
 % initial conditions of u
@@ -108,20 +109,22 @@ nINIT    = int32(str2num(linestr{1,2}));
 
 gamma = matData(1,1);
 
-ninit = zeros(nINIT, 1, "int32");
 init_soln = zeros(4, totaldof);
+dofs = zeros(nINIT, 1, "int32");
+
 for i=1:nINIT
-		line = fgets(fid);
-		linestr = strsplit(line, ",");
-		
-		n1 = int32(str2num(linestr{1,1}));
-		n2 = int32(str2num(linestr{1,2}));
-		n3 = double(str2num(linestr{1,3})); % rho
-		n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
-		n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
-		n6 = double(str2num(linestr{1,6})); % pressure
-		E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
-		init_soln(:, i) = double([n3 rho_u rho_v E]);
+	line = fgets(fid);
+	linestr = strsplit(line, ",");
+	
+	n1 = int32(str2num(linestr{1,1}));
+	n2 = int32(str2num(linestr{1,2}));
+	n3 = double(str2num(linestr{1,3})); % rho
+	n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
+	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
+	n6 = double(str2num(linestr{1,6})); % pressure
+	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
+	dofs(i) = (n1-1)*n_dof+n2;
+	init_soln(:, dofs(i)) = double([n3 rho_u rho_v E]);
 end
 
 % Dirichlet boundary conditions
@@ -145,7 +148,7 @@ for i=1:nDBC
 	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
 	n6 = double(str2num(linestr{1,6})); % pressure
 	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
-	dofs_fixed(i) = (n1-1)*ndof+n2;
+	dofs_fixed(i) = (n1-1)*n_dof+n2;
 	soln_applied(:, dofs_fixed(i)) = double([n3 rho_u rho_v E]);
 end
 

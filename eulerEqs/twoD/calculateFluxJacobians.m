@@ -1,8 +1,8 @@
 function [F1, F2, A1, A2] = calculateFluxJacobian(U, gamma)
-q1 = U(:, 1); % rho
-q2 = U(:, 2); % x momentum
-q3 = U(:, 3); % y momentum
-q4 = U(:, 4); % E
+q1 = U(1, :); % rho
+q2 = U(2, :); % x momentum
+q3 = U(3, :); % y momentum
+q4 = U(4, :); % E
 
 u = q2 / q1; v = q3 / q1;
 p = (gamma - 1) * (q4 - 0.5 * q1 * (u^2 + v^2));

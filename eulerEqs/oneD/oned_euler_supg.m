@@ -77,7 +77,7 @@ while t < t_final
 	K_global = zeros(3*n_nodes, 3*n_nodes);
 	K_supg_global = zeros(3*n_nodes, 3*n_nodes);
 	K_sc_global = zeros(3*n_nodes, 3*n_nodes);
-    M_supg_global = zeros(3*n_nodes, 3*n_nodes);
+	M_supg_global = zeros(3*n_nodes, 3*n_nodes);
 	% counter = 0;
 	for elem = 1:n_elements
 		node1 = elem; node2 = elem+1;
@@ -87,7 +87,7 @@ while t < t_final
 		
 		K_elem = zeros(6, 6);
 		K_supg_elem = zeros(6, 6);
-        K_sc_elem = zeros(6, 6);
+		K_sc_elem = zeros(6, 6);
 		M_supg_elem = zeros(6, 6);
 		% RHS_elem = zeros(6, 1);
 		dof1 = (node1 - 1) * 3 + (1:3); dof2 = (node2 - 1) * 3 + (1:3);
@@ -124,34 +124,34 @@ while t < t_final
 					K_ij_supg = tau * (A * dN_dx(i))' * (A * dN_dx(j)) * Jac_elem * wt;
 					K_supg_elem(i_dofs, j_dofs) = K_supg_elem(i_dofs, j_dofs) + K_ij_supg;
 				end
-            end
-            % shock capturing
-            for i = 1:2
+			end
+			% shock capturing
+			for i = 1:2
 				i_dofs = (i - 1) * 3 + (1:3);
 				for j = 1:2
 					j_dofs = (j - 1) * 3 + (1:3);
 					K_ij_sc = tau * (dN_dx(i) * dN_dx(j)) * Jac_elem * wt * eye(3);
 					K_sc_elem(i_dofs, j_dofs) = K_sc_elem(i_dofs, j_dofs) + K_ij_sc;
 				end
-            end
-
+			end
+			
 			% counter = counter + 1;
 		end
 		M_supg_global(global_dofs, global_dofs) = M_supg_global(global_dofs, global_dofs) + M_supg_elem;
 		K_global(global_dofs, global_dofs) = K_global(global_dofs, global_dofs) + K_elem;
 		K_supg_global(global_dofs, global_dofs) = K_supg_global(global_dofs, global_dofs) + K_supg_elem;
-        K_sc_global(global_dofs, global_dofs) = K_sc_global(global_dofs, global_dofs) + K_sc_elem;
+		K_sc_global(global_dofs, global_dofs) = K_sc_global(global_dofs, global_dofs) + K_sc_elem;
 	end
 	
-    dofs_free = 4:(n_nodes * 3 - 3);
-
+	dofs_free = 4:(n_nodes * 3 - 3);
+	
 	LHS = (1/dt) * (M_global + M_supg_global) + (K_global + K_supg_global + K_sc_global);
 	RHS = (1/dt) * (M_global + M_supg_global) * U(:);
-
-    RHS = RHS - LHS(:, 1) * U(1, 1) - LHS(:, 2) * U(2, 1) - LHS(:, 3) * U(3, 1);
-    RHS = RHS - LHS(:, end-2) * U(1, end) - LHS(:, end-1) * U(2, end) - LHS(:, end) * U(3, end);
-    
-    
+	
+	RHS = RHS - LHS(:, 1) * U(1, 1) - LHS(:, 2) * U(2, 1) - LHS(:, 3) * U(3, 1);
+	RHS = RHS - LHS(:, end-2) * U(1, end) - LHS(:, end-1) * U(2, end) - LHS(:, end) * U(3, end);
+	
+	
 	
 	U_new = LHS(dofs_free, dofs_free) \ RHS(dofs_free);
 	U(:, 2:end-1) = reshape(U_new, 3, n_nodes-2);
