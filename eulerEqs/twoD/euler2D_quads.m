@@ -20,9 +20,9 @@ gamma = matData(1, 1);
 dt = 0.001;
 
 maxsteps = 0.2 / dt;
-% maxsteps = 100;
+maxsteps = 2;
 u = init_soln;
-% plot_results(x, u, gamma);
+plot_results(x, u, gamma, elem_node_conn, node_coords);
 u_l = u(:, 1); u_r = u(:, end);
 
 soln_initial = soln_applied;
@@ -40,14 +40,14 @@ for loadstep = 1:maxsteps
 		node_idx = elem_node_conn(elnum, :);
 		U = u(:, node_idx);
 		% caclulate the local stiffness matrix
-		[Klocal, Mlocal] = stiffnessAndForce_quad4_euler2D(elem_node_conn(elnum, :), node_coords, elemData, matData, U, dt, soln_initial, soln_full_prev);
+		[Klocal, Mlocal, K_supg, M_supg] = stiffnessAndForce_quad4_euler2D(elem_node_conn(elnum, :), node_coords, elemData, matData, U, dt, soln_initial, soln_full_prev);
 		
 		% get the indices for assembly
 		inds4Assy = elem_dof_conn(elnum, :);
 		
 		% assemble
-		Kglobal(inds4Assy, inds4Assy) = Kglobal(inds4Assy, inds4Assy) + Klocal;
-		Mglobal(inds4Assy, inds4Assy) = Mglobal(inds4Assy, inds4Assy) + Mlocal;
+		Kglobal(inds4Assy, inds4Assy) = Kglobal(inds4Assy, inds4Assy) + Klocal + K_supg;
+		Mglobal(inds4Assy, inds4Assy) = Mglobal(inds4Assy, inds4Assy) + Mlocal + M_supg;
     end
     
     LHS = (1/dt) * Mglobal + Kglobal;
