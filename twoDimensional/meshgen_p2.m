@@ -2,7 +2,7 @@
 clc; clear; % close all;
 ndim = 2; % no of dimensions
 ndof = 1; % no of dofs
-n_elem = 20; % no of elements
+n_elem = 5; % no of elements
 nnode = (n_elem + 1) * (n_elem + 1);
 
 % domain boundaries

@@ -33,14 +33,14 @@ totaldof = nnode*n_dof;
 
 node_coords = zeros(nnode,ndim);
 for i=1:nnode
-		line = fgets(fid);
-		linestr = strsplit(line, ",");
-		
-		node_coords(i,1) = double(str2num(linestr{1,2}));
-		node_coords(i,2) = double(str2num(linestr{1,3}));
-		if(ndim == 3)
-			node_coords(i,3) = double(str2num(linestr{1,4}));
-		end
+	line = fgets(fid);
+	linestr = strsplit(line, ",");
+	
+	node_coords(i,1) = double(str2num(linestr{1,2}));
+	node_coords(i,2) = double(str2num(linestr{1,3}));
+	if(ndim == 3)
+		node_coords(i,3) = double(str2num(linestr{1,4}));
+	end
 end
 
 
@@ -135,7 +135,7 @@ nDBC    = int32(str2num(linestr{1,2}));
 
 gamma = matData(1,1);
 
-dofs_fixed = zeros(nDBC, 1, "int32");
+dofsfixed = zeros(nDBC, 1, "int32");
 soln_applied = zeros(4, totaldof);
 for i=1:nDBC
 	line = fgets(fid);
@@ -148,11 +148,20 @@ for i=1:nDBC
 	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
 	n6 = double(str2num(linestr{1,6})); % pressure
 	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
-	dofs_fixed(i) = (n1-1)*n_dof+n2;
-	soln_applied(:, dofs_fixed(i)) = double([n3 rho_u rho_v E]);
+	dofsfixed(i) = (n1-1)*n_dof+n2;
+	soln_applied(:, dofsfixed(i)) = double([n3 rho_u rho_v E]);
 end
 
-dofs_free = setdiff([1:totaldof], dofs_fixed)';
+dofs_fixed = [];
+for i = 1:length(dofsfixed)
+	node_id = dofsfixed(i);
+	start_dof = (node_id - 1) * ndof + 1;
+	end_dof = node_id * ndof;
+	dofs_fixed = [dofs_fixed, start_dof:end_dof];
+end
+
+dofs_fixed = dofs_fixed';
+dofs_free = setdiff([1:totaldof*ndof], dofs_fixed)';
 soln_full = soln_applied;
 
 
