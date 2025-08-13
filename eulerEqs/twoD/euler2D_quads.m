@@ -65,13 +65,6 @@ for loadstep = 1:maxsteps
     end
     u = reshape(u_p, ndof, nnode);
 
-    % RHS_mod = RHS(dofs_free) - LHS(dofs_free, dofs_fixed) * u_p;
-	% u_new_free = LHS(dofs_free, dofs_free) \ RHS_mod;
-	% u_new_full = zeros(ndof * totaldof, 1);
-	% u_new_full(dofs_fixed) = u_p;
-	% u_new_full(dofs_free) = u_new_free;
-	% u = reshape(u_new_full, ndof, nnode);
-	
 	% fileName = sprintf("%s%d%s", "advdiff2D-", loadstep, "-.vtk");
 	% writeoutputvtk(ndim, nelem, nnode, npelem, ndof, node_coords, elem_node_conn, soln_initial, fileName);
 end
