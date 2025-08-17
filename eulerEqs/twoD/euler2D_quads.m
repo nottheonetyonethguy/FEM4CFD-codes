@@ -1,6 +1,6 @@
 clear;
 clc;
-close all;
+% close all;
 
 % Step 1: Pre-prcessing
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,7 +20,7 @@ gamma = matData(1, 1);
 dt = 0.001;
 
 maxsteps = 0.2 / dt;
-% maxsteps = 50;
+% maxsteps = 100;
 u = init_soln;
 % plot_results(x, u, gamma, elem_node_conn, node_coords);
 u_l = u(:, 1); u_r = u(:, end);

@@ -65,7 +65,7 @@ for gp = 1:nGP
 	end
 	
 	% tau = calculate_tau_supg(U_gp, gamma, dt, dNdx, dNdy, Jac);
-	tau = 1e-3;
+    tau = 0.1;
     % tau = 0;
 	[F1, F2, A1, A2] = calculateFluxJacobians(U_gp, gamma);
 	
