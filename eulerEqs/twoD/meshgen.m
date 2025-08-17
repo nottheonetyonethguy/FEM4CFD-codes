@@ -134,7 +134,7 @@ fprintf(fileID, "nbound,%d\n", nbound);
 left = conn_table(:, 1); right = conn_table(:, end);
 node_nums = [left right]; node_nums = node_nums(:);
 for i = 1:nbound
-	if (i < 5)
+	if (i <= 5)
 		rho = rho_l; u = u_l; v = v_l; p = p_l;
 	else
 		rho = rho_r; u = u_r; v = v_r; p = p_r;

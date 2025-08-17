@@ -25,7 +25,7 @@ for i = 1:n_nodes
 	else
 		rho = rho_R; u = u_R; p = p_R;
 	end
-	e = p / ((gamma - 1) * rho) + 0.5 * u^2;
+	e = (p / ((gamma - 1) * rho)) + 0.5 * u^2;
 	U(:, i) = [rho; rho * u; rho * e];
 end
 U_L = U(:, 1); U_R = U(:, end);

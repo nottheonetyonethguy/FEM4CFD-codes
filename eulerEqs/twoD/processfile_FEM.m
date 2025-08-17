@@ -122,9 +122,11 @@ for i=1:nINIT
 	n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
 	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
 	n6 = double(str2num(linestr{1,6})); % pressure
-	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
+	V = [n4 n5];
+	E = (n6 / (n3 * (gamma - 1))) + 0.5 * norm(V)^2;
+	rho_E = n3 * E;
 	dofs(i) = (n1-1)*n_dof+n2;
-	init_soln(:, dofs(i)) = double([n3 rho_u rho_v E]);
+	init_soln(:, dofs(i)) = double([n3 rho_u rho_v rho_E]);
 end
 
 % Dirichlet boundary conditions
@@ -147,9 +149,11 @@ for i=1:nDBC
 	n4 = double(str2num(linestr{1,4})); rho_u = n3 * n4;% u
 	n5 = double(str2num(linestr{1,5})); rho_v = n3 * n5;% v
 	n6 = double(str2num(linestr{1,6})); % pressure
-	E = (n6 / (gamma - 1)) + 0.5 * n3 * (n4^2 + n5^2);
+	V = [n4 n5];
+	E = (n6 / (n3 * (gamma - 1))) + 0.5 * norm(V)^2;
+	rho_E = n3 * E;
 	dofsfixed(i) = (n1-1)*n_dof+n2;
-	soln_applied(:, dofsfixed(i)) = double([n3 rho_u rho_v E]);
+	soln_applied(:, dofsfixed(i)) = double([n3 rho_u rho_v rho_E]);
 end
 
 dofs_fixed = [];

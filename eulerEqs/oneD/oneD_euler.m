@@ -165,7 +165,9 @@ u = U(2, :) ./ rho;
 E = U(3, :);
 p = (gamma - 1) * (E - 0.5 * rho .* u .^ 2);
 
-figure;
+f1 = figure();
+
+figure(f1);
 subplot(2, 2, 1);
 plot(x, rho, 'k-', 'LineWidth', 2);
 title('Density');
