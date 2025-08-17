@@ -1,0 +1,41 @@
+//+
+SetFactory("Built-in");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+Torus(1) = {0.2, -0.4, 0.5, 0.5, 0.2, 2*Pi};
+//+
+Torus(1) = {0.2, -0.4, 0.5, 0.5, 0.2, 2*Pi};
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("OpenCASCADE");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("Built-in");
+//+
+SetFactory("OpenCASCADE");
+Circle(1) = {-4, -2, -2.4, 0.5, 0, 2*Pi};

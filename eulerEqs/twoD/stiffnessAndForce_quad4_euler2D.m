@@ -12,9 +12,9 @@ he = xNode(2) - xNode(1); % element length
 gamma = matData(1, 1);
 
 if (npElem == 3)
-	nGP = 1;
-	[gpts1, gpts2, gwts] = get_Gausspoints_tria(nGP);
-	ELEMTYPE = 1;
+		nGP = 1;
+		[gpts1, gpts2, gwts] = get_Gausspoints_tria(nGP);
+		ELEMTYPE = 1;
 elseif (npElem == 6)
 	nGP = 3;
 	[gpts1, gpts2, gwts] = get_Gausspoints_tria(nGP);
@@ -65,7 +65,8 @@ for gp = 1:nGP
 	end
 	
 	% tau = calculate_tau_supg(U_gp, gamma, dt, dNdx, dNdy, Jac);
-    tau = 1e-3;
+	tau = 1e-3;
+    % tau = 0;
 	[F1, F2, A1, A2] = calculateFluxJacobians(U_gp, gamma);
 	
 	for ii = 1:npElem
@@ -86,15 +87,14 @@ for gp = 1:nGP
 			colIdx = (j-1)*n_dof + 1 : j * n_dof;
 			
 			K_ij = (N(i) * (A1 * dNdx(j) + A2 * dNdy(j))) * dvol; % K_local
-			% K_ij_supg = tau * ((dNdx(i) * A1 * N(j) + dNdx(j)* A2 * N(j)) + (A1 * dNdx(i) + A2 * dNdy(i))' * (A1 * dNdx(j) + A2 * (dNdy(j)))); % K_supg
 			K_ij_supg = tau * (dNdx(i) * A1 + dNdy(i) * A2) * (A1 * dNdx(j) + A2 * dNdy(j));
 			
-            M_ij = (N(i) * N(j) * eye(n_dof)) * dvol; % Mass matrix
+			M_ij = (N(i) * N(j) * eye(n_dof)) * dvol; % Mass matrix
 			M_ij_supg = (tau * (A1 * dNdx(i) + A2 * dNdy(i))) * N(j);
-
+			
 			Klocal(rowIdx, colIdx) = Klocal(rowIdx, colIdx) + K_ij;
 			K_supg(rowIdx, colIdx) = K_supg(rowIdx, colIdx) + K_ij_supg;
-
+			
 			Mlocal(rowIdx, colIdx) = Mlocal(rowIdx, colIdx) + M_ij;
 			M_supg(rowIdx, colIdx) = M_supg(rowIdx, colIdx) + M_ij_supg;
 		end
