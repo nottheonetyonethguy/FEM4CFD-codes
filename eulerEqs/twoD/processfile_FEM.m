@@ -14,7 +14,7 @@ fid=fopen(fname,'r');
 
 line=fgets(fid);
 linestr = strsplit(line, ",");
-ndim = int32(str2num(linestr{1,2}))
+ndim = int32(str2num(linestr{1,2}));
 
 % ndof
 
@@ -27,7 +27,7 @@ n_dof = 1;
 
 line=fgets(fid);
 linestr = strsplit(line, ",");
-nnode = int32(str2num(linestr{1,2}))
+nnode = int32(str2num(linestr{1,2}));
 
 totaldof = nnode*n_dof;
 
