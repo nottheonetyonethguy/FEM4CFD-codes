@@ -434,15 +434,105 @@ end
 \begin{figure}[!h]
 \centering
  \includegraphics[width=0.7\textwidth]{pe_10_da_10_supg_1_0.jpg}
- \caption{For Pe = 10, Da = 10, (1, 0)}
+ \caption{For Pe = 10, Da = 10, (0, 1)}
  \label{pe_10_da_10_1_0_supg}
 \end{figure}
-This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem.
+This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem. The domain for this case constitutes of 10 linear elements, with the left and right nodes being fixed (Dirichlet BC) at $\phi$ = 0 and 1, respectively.
 \subsection{Postivity Preserving Variational Method}
-To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving solmethod is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. \\
+To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving method is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. Even though SUPG and Petrov-Galerkin methods reduce the oscillations seen in the Galerkin approximation, near discontinuities with sharp gradients overshoots and undershoots still exist. PPV insures the solution follows a natural order -- making sure the solution follows the sign of the neighbour, thus eliminating oscillations.\\
 A positivity condition is enforced in the element stiffness matrix i.e.,
    \begin{equation}
        k_{ij} = k_{ji} = max(0, a_{ij}, a_{ji})
  \end{equation}
- where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix.
+ where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix. This makes up the sufficient condition for imposing the positivity property to the stiffness matrix. Further, a non linear stabilization term is added to the weak form the Galerkin approximation with SUPG stabilization. Recalling the SUPG stabilized weak form:
+ \begin{equation}
+    \begin{gathered}
+	\int_\Omega w \left( a \cdot \nabla \phi \right) \dd \Omega\ +\ \int_\Omega \nabla w \left( k \nabla \phi \right) \dd \Omega\ +\ \int_\Omega wQ \dd \Omega\ +\ \sum_{e=1}^{n_{el}} \int_\Omega \mathcal{P}(w) \tau \mathcal{R}(\phi) \dd \Omega\ +\\
+	\sum_{e=1}^{n_{el}} \int_{\Omega^e} \chi \frac{\abs{\mathcal{R}\left(\phi\right)}}{\abs{\nabla \phi}} k^{add} \frac{\dd w^h}{\dd x} \frac{\dd \phi}{\dd x} \dd \Omega =\ \int_\Omega f N_a \dd \Omega\ +\ \int_\Gamma h N_a \dd \Gamma 
+    \label{ppv_eqn}
+    \end{gathered}
+ \end{equation}
+ Here in equation (\ref{ppv_eqn}), the fourth term is the non-linear positivity preserving term. $\mathcal{R(\phi)}$ represents the residual of the advection diffusion reaction equation and $\chi$ is a scaling parameter, which non dimensionalizes $\frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}$. The non-linear term is added to the linear standard weak form, to add the discontinuity (or shock) capturing term. The definitions of $\chi$, $\frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}$, and $k^{add}$ are as follows:
+	   \begin{subequations}
+	   \begin{align}
+	       \chi\ &=\ \frac{2}{\abs{\sigma}h + 2\abs{a}} \label{chi}\\
+	       \frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}\ &=\  \frac{\abs{w \left( a \cdot \nabla \phi \right) + w \sigma}}{\abs{\nabla \phi}} \label{res_ratio} \\
+	       k^{add} &= max \left\{ \frac{\abs{a - \tau a \sigma + \tau a \abs{\sigma}}h}{2}\ -\ \left( k + \tau a^2 \right)\ +\ \frac{\left( \sigma + \tau \sigma \abs{\sigma} \right)h^2}{6},\ 0\right\} \label{k_add}
+	   \end{align}
+	   \end{subequations}
+\subsubsection{Implementation}
+Similar to the Petrov-Galerkin and SUPG implementations, solution $\textit{soln\_full\_ppv}$ and the stiffness matrix, $\textit{Kglobal\_ppv}$ are initialized beforehand. The subroutine for the PPV method goes something like this:
+	\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
+Klocal_ppv = zeros(2, 2);
+Flocal_ppv = zeros(2, 1);
+
+n1 = elem_dofs(1);
+n2 = elem_dofs(2);
+
+x1 = node_coords(n1);
+x2 = node_coords(n2);
+
+u1 = soln_full_ppv(n1);
+u2 = soln_full_ppv(n2);
+u = [u1 u2];
+
+eps = 1e-12;
+
+for gp = 1:nGP
+	xi = gpts(gp);
+	wt = gwts(gp);
+	
+	N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	dNdxi = [-0.5, 0.5];
+	
+	Jac = h / 2;
+	
+	dNdx = dNdxi / Jac;
+	
+	du = dNdx * u';
+	uh = N * u';
+	
+	x = N * [x1 x2]';
+	% f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
+	f = 0;
+	if (norm(du) < 1e-8)
+	    res_ratio = abs((a * dNdx + s * N))/abs((dNdx) + eps);
+	    chi = 2 / ((abs(s) * h) + (2 * abs(a)));
+	    kadd = max((abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
+		- (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
+	else
+	    chi = 0;
+	    res_ratio = 0;
+	    kadd = 0;
+	end
+	
+	% stabilization
+	Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
+	Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
+end
+
+Klocal_ppv = Klocal_ppv + Klocal;
+Flocal_ppv = Flocal_ppv + Flocal;
+
+end
+	\end{lstlisting}
+\begin{figure}[!h]
+\centering
+ \includegraphics[width=0.6\textwidth]{pe_10_da_10_ppv_0_1.jpg}
+ \caption{For Pe = 10, Da = 10 (0, 1) for 10 elements}
+ \label{pe_10_da_10_ppv_0_1}
+\end{figure}
+An error checking condition, that checks for sharp gradients (i.e., norm) is added to the function. This ensures positivity is imparted to the solution, only when discontinuities are observed in the solution. As can be seen in figure \ref{pe_10_da_10_ppv_0_1} as compared to SUPG and Galerkin methods, the solution is more natural i.e., more closely aligned with analytical solution, with little to no oscillations. The domain and initial conditions for this case is the same as that of figure \ref{pe_10_da_10_1_0_supg}.
+\section{1D Euler Equations}
+The Euler equations of gas dynamics express the conservation of mass, momentum and energy in 3 dimensions, in a compressible, invscid, and non-conducting fluid. The mass conservation equation in Newtonian mechanics, is the law of mass conservation for a varying material $V_t$ occupied by a fluid. The differential form of the mass conversation equation or the continuity equation is
+\begin{subequations}
+   \begin{align}
+       \frac{\partial \rho}{\partial t} + \rho  \nabla \cdot v = 0 \label{mass_eqn}\\
+       \frac{\partial \rho v}{\partial t} + \nabla \cdot \left( \rho v \otimes v + p \textbf{I}\right)v = p \textbf{b}\\
+       \frac{\partial \rho E}{\partial t} + \nabla \cdot \left( \left( \rho E + p \right)  \right) = v \cdot \rho \textbf{b}
+   \end{align}
+\end{subequations}
+Here $\rho$ is the fluid density and $v$ is the velocity of the moving fluid.\\
+The momentum conservation equation, also known as the equation of motion relates the rate of change of momentum of a control volume and sum of all forces acting on the control volume. 
 \end{document}

@@ -123,12 +123,12 @@ u_analytical = analyticalSolution(node_coords, c, mu, s, L, uL, uR);
 f1 = figure;
 % f2 = figure;
 figure(f1);
-plot(node_coords, soln_full, 'bo-', 'LineWidth', 2, 'DisplayName', 'Galerkin');
+plot(node_coords, soln_full, 'bo-', 'DisplayName', 'Galerkin');
 hold on;
 % plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
-plot(node_coords, soln_full_supg, 'r *-', 'LineWidth', 2, 'DisplayName', 'SUPG');
-% plot(node_coords, soln_full_ppv, 'k-', 'LineWidth', 2, 'DisplayName', 'Discontinuity Correction');
-plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
+plot(node_coords, soln_full_supg, 'r *-', 'DisplayName', 'SUPG');
+plot(node_coords, soln_full_ppv, 'k-o', 'DisplayName', 'Discontinuity Correction', 'MarkerFaceColor', 'black');
+plot(node_coords, u_analytical', 'k-', 'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates, x/L")
 ylabel("Values, \phi")
 title("1D steady state advection diffusion equation")
@@ -308,8 +308,9 @@ for gp = 1:nGP
 	x = N * [x1 x2]';
 	% f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
 	f = 0;
-	
-	res_ratio = (abs( s * uh - f) / (abs(du) + eps));
+	if (norm(du) < 1e-8)
+	% res_ratio = (abs( s * uh - f) / (abs(du) + eps));
+    res_ratio = abs((a * dNdx + s * N))/abs((dNdx) + eps);
 	
 	chi = 2 / ((abs(s) * h) + (2 * abs(a)));
 	
@@ -317,7 +318,11 @@ for gp = 1:nGP
 		- (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
 	
 	% kadd = max((abs(a)* h/2) - (mu) + (s/6 * h^2), 0);
-	
+    else
+        chi = 0;
+        res_ratio = 0;
+        kadd = 0;
+    end
 	
 	
 	% stabilization
