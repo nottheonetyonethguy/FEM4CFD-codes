@@ -2,7 +2,7 @@
 clc; clear; % close all;
 ndim = 2; % no of dimensions
 ndof = 4; % no of dofs
-n_elem_x = 20; % no of elements x direction
+n_elem_x = 100; % no of elements x direction
 n_elem_y = 4; % no of elements y direction
 nnode = (n_elem_x + 1) * (n_elem_y + 1);
 
@@ -34,7 +34,8 @@ nbound = (n_elem_y + 1) * 2; % left most and right most sides
 
 %% open new file to write data
 % delete(data.inp)
-fileID = fopen('data0.inp', 'a+');
+% fileID = fopen('data0.inp', 'a+');
+fileID = fopen('data100.inp', 'a+');
 fprintf(fileID, 'ndim,%d\n', ndim);
 fprintf(fileID, 'ndof,%d\n', ndof);
 fprintf(fileID, 'nnode,%d\n', nnode);
@@ -134,7 +135,7 @@ fprintf(fileID, "nbound,%d\n", nbound);
 left = conn_table(:, 1); right = conn_table(:, end);
 node_nums = [left right]; node_nums = node_nums(:);
 for i = 1:nbound
-	if (i <= 5)
+	if (i <= (n_elem_y + 1))
 		rho = rho_l; u = u_l; v = v_l; p = p_l;
 	else
 		rho = rho_r; u = u_r; v = v_r; p = p_r;
