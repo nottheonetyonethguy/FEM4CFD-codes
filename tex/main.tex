@@ -434,17 +434,460 @@ end
 \begin{figure}[!h]
 \centering
  \includegraphics[width=0.7\textwidth]{pe_10_da_10_supg_1_0.jpg}
- \caption{For Pe = 10, Da = 10, (1, 0)}
+ \caption{For Pe = 10, Da = 10, (0, 1)}
  \label{pe_10_da_10_1_0_supg}
 \end{figure}
-This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem.
+This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem. The domain for this case constitutes of 10 linear elements, with the left and right nodes being fixed (Dirichlet BC) at $\phi$ = 0 and 1, respectively.
 \subsection{Postivity Preserving Variational Method}
-To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving method is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. \\
+To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving method is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. Even though SUPG and Petrov-Galerkin methods reduce the oscillations seen in the Galerkin approximation, near discontinuities with sharp gradients overshoots and undershoots still exist. PPV insures the solution follows a natural order -- making sure the solution follows the sign of the neighbour, thus eliminating oscillations.\\
 A positivity condition is enforced in the element stiffness matrix i.e.,
    \begin{equation}
        k_{ij} = k_{ji} = max(0, a_{ij}, a_{ji})
  \end{equation}
- where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix. Even though stabilization methods like SUPG and PG reduce the oscillations in the solution, there still exist overshoots and undershoots near regions of high gradient, becauseneither method is monotone or positivity preserving. Natural physical solutions must follow the sign of their neighbour while excluding oscillations. 
+ where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix. This makes up the sufficient condition for imposing the positivity property to the stiffness matrix. Further, a non linear stabilization term is added to the weak form the Galerkin approximation with SUPG stabilization. Recalling the SUPG stabilized weak form:
+ \begin{equation}
+    \begin{gathered}
+	\int_\Omega w \left( a \cdot \nabla \phi \right) \dd \Omega\ +\ \int_\Omega \nabla w \left( k \nabla \phi \right) \dd \Omega\ +\ \int_\Omega wQ \dd \Omega\ +\ \sum_{e=1}^{n_{el}} \int_\Omega \mathcal{P}(w) \tau \mathcal{R}(\phi) \dd \Omega\ +\\
+	\sum_{e=1}^{n_{el}} \int_{\Omega^e} \chi \frac{\abs{\mathcal{R}\left(\phi\right)}}{\abs{\nabla \phi}} k^{add} \frac{\dd w^h}{\dd x} \frac{\dd \phi}{\dd x} \dd \Omega =\ \int_\Omega f N_a \dd \Omega\ +\ \int_\Gamma h N_a \dd \Gamma 
+    \label{ppv_eqn}
+    \end{gathered}
+ \end{equation}
+ Here in equation (\ref{ppv_eqn}), the fourth term is the non-linear positivity preserving term. $\mathcal{R(\phi)}$ represents the residual of the advection diffusion reaction equation and $\chi$ is a scaling parameter, which non dimensionalizes $\frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}$. The non-linear term is added to the linear standard weak form, to add the discontinuity (or shock) capturing term. The definitions of $\chi$, $\frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}$, and $k^{add}$ are as follows:
+	   \begin{subequations}
+	   \begin{align}
+	       \chi\ &=\ \frac{2}{\abs{\sigma}h + 2\abs{a}} \label{chi}\\
+	       \frac{\abs{\mathcal{R}(\phi)}}{\abs{\nabla \phi}}\ &=\  \frac{\abs{w \left( a \cdot \nabla \phi \right) + w \sigma}}{\abs{\nabla \phi}} \label{res_ratio} \\
+	       k^{add} &= max \left\{ \frac{\abs{a - \tau a \sigma + \tau a \abs{\sigma}}h}{2}\ -\ \left( k + \tau a^2 \right)\ +\ \frac{\left( \sigma + \tau \sigma \abs{\sigma} \right)h^2}{6},\ 0\right\} \label{k_add}
+	   \end{align}
+	   \end{subequations}
+\subsubsection{Implementation}
+Similar to the Petrov-Galerkin and SUPG implementations, solution $\textit{soln\_full\_ppv}$ and the stiffness matrix, $\textit{Kglobal\_ppv}$ are initialized beforehand. The subroutine for the PPV method goes something like this:
+	\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+function [Klocal_ppv, Flocal_ppv] = ppv(a, mu, h, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal)
+Klocal_ppv = zeros(2, 2);
+Flocal_ppv = zeros(2, 1);
 
+n1 = elem_dofs(1);
+n2 = elem_dofs(2);
 
+x1 = node_coords(n1);
+x2 = node_coords(n2);
+
+u1 = soln_full_ppv(n1);
+u2 = soln_full_ppv(n2);
+u = [u1 u2];
+
+eps = 1e-12;
+
+for gp = 1:nGP
+	xi = gpts(gp);
+	wt = gwts(gp);
+	
+	N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	dNdxi = [-0.5, 0.5];
+	
+	Jac = h / 2;
+	
+	dNdx = dNdxi / Jac;
+	
+	du = dNdx * u';
+	uh = N * u';
+	
+	x = N * [x1 x2]';
+	% f = 10.0 * exp(-5 * x) - 4.0 * exp(-x);
+	f = 0;
+	if (norm(du) < 1e-8)
+	    res_ratio = abs((a * dNdx + s * N))/abs((dNdx) + eps);
+	    chi = 2 / ((abs(s) * h) + (2 * abs(a)));
+	    kadd = max((abs(a - tau*a*s + tau*a*abs(s)) * h / 2) ...
+		- (mu + tau*a^2) + (s + tau*s*abs(s)) * h^2 / 6, 0);
+	else
+	    chi = 0;
+	    res_ratio = 0;
+	    kadd = 0;
+	end
+	
+	% stabilization
+	Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
+	Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
+end
+
+Klocal_ppv = Klocal_ppv + Klocal;
+Flocal_ppv = Flocal_ppv + Flocal;
+
+end
+	\end{lstlisting}
+\begin{figure}[!h]
+\centering
+ \includegraphics[width=0.6\textwidth]{pe_10_da_10_ppv_0_1.jpg}
+ \caption{For Pe = 10, Da = 10 (0, 1) for 10 elements}
+ \label{pe_10_da_10_ppv_0_1}
+\end{figure}
+An error checking condition, that checks for sharp gradients (i.e., norm) is added to the function. This ensures positivity is imparted to the solution, only when discontinuities are observed in the solution. As can be seen in figure \ref{pe_10_da_10_ppv_0_1} as compared to SUPG and Galerkin methods, the solution is more natural i.e., more closely aligned with analytical solution, with little to no oscillations. The domain and initial conditions for this case is the same as that of figure \ref{pe_10_da_10_1_0_supg}.
+\section{1D Euler Equations}
+The Euler equations of gas dynamics express the conservation of mass, momentum and energy in 3 dimensions, in a compressible, invscid, and non-conducting fluid. The mass conservation equation in Newtonian mechanics, is the law of mass conservation for a varying material $V_t$ occupied by a fluid. The differential form of the mass conversation equation or the continuity equation is
+\begin{subequations}
+   \begin{gather}
+       \frac{\partial \rho}{\partial t} + \rho  \nabla \cdot v = 0 \label{mass_eqn}\\
+       \frac{\partial \rho v}{\partial t} + \nabla \cdot \left( \rho v \otimes v + p \textbf{I}\right)v = p \textbf{b} \label{mom_eqn}\\
+       \frac{\partial \rho E}{\partial t} + \nabla \cdot \left( \left( \rho E + p \right)  \right) = v \cdot \rho \textbf{b} \label{en-eqn}
+   \end{gather}
+\end{subequations}
+Here $\rho$ is the fluid density and $\rho v$ is the momentum of the fluid. P is the control volume pressure and $\rho E$ is the total energy contained per unit volume. $\rho b$ is the external force per unit volume. In vector forms, the equations can be written as:
+\begin{equation}
+    \boldsymbol{U_t} + \frac{\partial \boldsymbol{F_1}}{\partial x} + \frac {\partial \boldsymbol{F_2}} { \partial x} = \boldsymbol{B}
+\end{equation}
+where, \textbf{U} is the conservation variables, $\boldsymbol{F_i}$ are the flux vectors and \textbf{B} is a source term. For 1D Euler equations, the source term and the second flux vector are absent. The terms are defined as follows for one dimensional cases:
+\begin{equation}
+    \boldsymbol{U} = \left(   \begin{matrix}
+			\rho \\
+			\rho v \\
+			\rho E
+		   \end{matrix} \right) \hfill 
+    \boldsymbol{F} = \left(   \begin{matrix}
+			\rho v_1\\
+			\rho v + p \\
+			\left( \rho E + p \right) v
+		    \end{matrix} \right) \hfill \text{and } p = \left( \gamma - 1 \right) \left[ E - \frac{1}{2} v^2 \right]
+    \label{euler-vec}
+\end{equation}
+The flux jacobian is defined as 
+\begin{equation}
+    A(U) = F'(U) = \frac {\partial F} { \partial U}
+    \label{flux-jac}
+\end{equation}
+Defining the flux vector in terms of conservative variables makes it easier to understand the flux jacobian matrix.
+\begin{equation}
+    F(U) =  \left[   \begin{matrix}
+		U_2 \\
+		\frac{1}{2} \left( 3 - \gamma \right)\frac{U_2^2}{U_1} + \left( \gamma - 1 \right)U_3 \\
+		\gamma \frac{U_2 U_3}{U_1} - \frac{1}{2}\left( \gamma - 1 \right)\frac{U_2^2}{U_1^2}
+       \end{matrix} \right]
+       \label{flux-cons}
+\end{equation}
+Thus, from equation \ref{flux-jac} and \ref{flux-cons} we get
+\begin{equation}
+    A(U) = \left[
+       \begin{matrix}
+	    0 & 1 & 0 \\
+	    -\frac{1}{2}\left( \gamma - 3 \right)\left( \frac{U_2}{U_1} \right)^2 & \left( 3 - \gamma \right)\frac{U_2}{U_1} & \gamma - 1 \\
+	    -\gamma \frac{U_2 U_3}{U_1^2} & \gamma \frac{U_3}{U_1} - \frac{3}{2}\left( \gamma - 1 \right)\left( \frac{U_2}{U_1} \right)^2 & \gamma \frac{U_2}{U_1}\\
+	    
+       \end{matrix}
+    \right]
+    \label{flux-jac-cons}
+\end{equation}
+Defining the total specific enthalpy H as $H = (E\ +\ p)/\rho$
+\begin{equation}
+    A(U) = \left[
+       \begin{matrix}
+	    0 & 1 & 0 \\
+	    -\frac{1}{2}\left( \gamma - 3 \right)\left( u\right)^2 & \left( 3 - \gamma \right) u & \gamma - 1 \\
+	    u \left[ \frac{1}{2} \left( \gamma - 1 \right)u^2 - H \right] & H - \left( \gamma - 1 \right)u^2 & \gamma u\\
+	    
+       \end{matrix}
+    \right]
+    \label{flux-jac-con-mat}
+\end{equation}
+The Euler equations for gas dynamics is a hyperbolic, non-linear, partial differential equation. To solve it computationally efficiently, it must be first linearized and a solving scheme should be used. For the purpose of the examples, two schemes -- Taylor-Galerkin and Backward Euler method -- are used. 
+\subsection{Taylor-Galerkin scheme}
+The linear form of the hyperbolic Euler partial differential equations is
+\begin{equation}
+    \frac {\partial U} { \partial t} + A(U)\frac {\partial U} { \partial x} = 0
+    \label{linear-euler}
+\end{equation}
+Using a Taylor series expansion in time $t\ =\ t^n$, the terms in the equation become
+\begin{equation}
+\begin{aligned}
+    U^{n+1} = U^n + \Delta t \frac {\partial U} { \partial t}\bigg|^n + \frac{\Delta t^2}{2} \frac {\partial^2 u} { \partial t^2}\bigg|^n 
+    \label{Un_1eq}
+\end{aligned}
+\end{equation}
+But from equation \ref{linear-euler}, we know, 
+\begin{equation}
+\begin{gathered}
+	\frac {\partial u} { \partial t}\bigg|^n = - A(u)\frac {\partial u} { \partial x}\bigg|^n = - \frac {\partial F} { \partial x}\bigg|^n \\
+	\frac {\partial^2 u } { \partial t^2}\bigg|^n = - \frac {\partial } { \partial x} \left( A \frac {\partial u} { \partial t} \right)\bigg|^n = \frac {\partial } { \partial x} \left( A \frac {\partial F} { \partial x} \right)\bigg|^n = \frac {\partial } { \partial x} \left( A^2 \frac {\partial u} { \partial x} \right)\bigg|^n   
+	\label{tg-1dudt}
+\end{gathered}   
+\end{equation}
+Then equation \ref{Un_1eq} becomes
+\begin{equation}
+    \Delta U = - \Delta t \frac {\partial F(U)}{ \partial x} + \frac{\Delta t^2}{2} \frac {\partial } { \partial x} \left( A^2(U) \frac {\partial U} { \partial x} \right) 
+\label{tg-var-eq}
+\end{equation}
+where, $\Delta U$ = $U^{n+1} - U^n$. Now, applying Galerkin approximation as before, i.e., $w = N_a$ and $U = wU$, $w$ is a weighting function and $N_a$ is a basis function. From equation \ref{tg-var-eq},
+\begin{equation}
+    \frac{1}{\Delta t}M \int \Delta U = - \int F(U) \frac {\partial N_a} { \partial x} \dd x + \Delta t \int A^2(U) \frac {\partial N_a} { \partial x} \frac {\partial N_a} { \partial x} \dd x  \label{tg-var-main}
+\end{equation}
+Equation \ref{tg-var-main} is the final varitional formulation of the 1D Euler equations using Taylor-Galerkin scheme. The mass matrix $M = \int N_a N_a $ can either be a lumped or a consistent mass matrix. The solution will be second order accurate. The Taylor expansed can be increased in order to find solutions of higher order accuracy.
+\subsubsection{Implementation}
+For the MATLAB implementation, Sod's shock tube problem was chosen. A domain of with 100 elements was chosen. Sod's shock problem has an initial condition which also acts as the Dirichlet boundary conditions for this problem. The initial conditions are:
+\begin{equation}
+    x < 0.5 \begin{cases}
+    	\rho = 1.0 \\
+	u = 0.0 \\
+	p = 1.0
+	\end{cases} \text{and } x > 0.5 \begin{cases}
+    	\rho = 0.125 \\
+	u = 0.0\\
+	p = 0.1
+    \end{cases} 
+    \label{init-condn-1d}
+\end{equation}
+Here the final time $t$ is 0.2 seconds, with $\Delta t = 0.001$. At t = 0, the diaphragm is removed and the resulting flow is characterized. 
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+close all;
+clear; clc;
+
+%% parameters
+gamma = 1.4;
+x_left = 0.0;
+x_right = 1.0;
+x_interface = 0.5;
+
+n_elements = 100;
+dx = (x_right - x_left) / n_elements;
+n_nodes = n_elements + 1;
+
+nGP = 2;
+t_final = 0.2;
+
+rho_L = 1.0; u_L = 0.0; p_L = 1.0;
+rho_R = 0.125; u_R = 0.0; p_R = 0.1;
+
+x = linspace(x_left, x_right, n_nodes);
+U = zeros(3, n_nodes);
+U_old = U;
+
+% initial conditions
+for i = 1:n_nodes
+    if x(i) <= x_interface
+	    rho = rho_L; u_gp = u_L; p = p_L;
+    else
+	    rho = rho_R; u_gp = u_R; p = p_R;
+    end
+    
+    e = p / ((gamma - 1) * rho) + 0.5 * u_gp ^ 2;
+    U(:, i) = [rho; rho * u_gp; rho * e];
+end
+
+U_L = U(:, 1); U_R = U(:, end);
+
+% mass matrix
+M_global = zeros(3 * n_nodes, 3 * n_nodes);
+
+for elem = 1:n_elements
+    [gpts, gwts] = get_Gausspoints_1D(nGP);
+    M_elem = zeros(6, 6);
+    
+    Jac_elem = dx / 2;
+    
+    node1 = elem;
+    node2 = elem + 1;
+    dof1 = (node1 - 1) * 3 + (1:3);
+    dof2 = (node2 - 1) * 3 + (1:3);
+    global_dofs = [dof1, dof2];
+    
+    for gp = 1:nGP
+	xi = gpts(gp);
+	w = gwts(gp);
+	N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	dN_dxi = [-0.5, 0.5];
+	dN_dx = dN_dxi / Jac_elem;
+	% assembly
+	for i = 1:2
+	    i_dofs = (i - 1) * 3 + (1:3);
+	    for j = 1:2
+		j_dofs = (j - 1) * 3 + (1:3);
+		M_ij = N(i) * N(j) * eye(3) * Jac_elem * w;
+		M_elem(i_dofs, j_dofs) = M_elem(i_dofs, j_dofs) + M_ij;
+	    end
+	end
+    end
+    
+    M_global(global_dofs, global_dofs) = M_global(global_dofs, global_dofs) + M_elem;
+end
+
+M_lumped = diag(sum(M_global, 2));
+
+% time stepping
+t = 0.0;
+dt = 0.001;
+step = 0;
+
+while t < t_final
+    if t + dt > t_final
+	dt = t_final - t;
+    end
+    RHS = zeros(3 * n_nodes, 1);
+    for elem = 1:n_elements
+	UL = U(:, elem);
+	UR = U(:, elem + 1);
+	[gpts, gwts] = get_Gausspoints_1D(nGP);
+	
+	for gp = 1:nGP
+	    xi = gpts(gp);
+	    wt = gwts(gp);
+	    
+	    N = [0.5 * (1 - xi), 0.5 * (1 + xi)];
+	    dN_dxi = [-0.5, 0.5];
+	    Jac_elem = dx / 2;
+	    dN_dx = dN_dxi / Jac_elem;
+	    u_gp = N(1) * UL + N(2) * UR;
+	    
+	    [F, A] = calculate_flux_jacobian(u_gp, gamma);
+	    % flux
+	    flux_term = (F * dN_dx) * Jac_elem * wt;
+	    dofs_1 = 3 * (elem - 1) + 1:3 * elem;
+	    dofs_2 = 3 * elem + 1:3 * (elem + 1);
+	    RHS(dofs_1) = RHS(dofs_1) + flux_term(:, 1);
+	    RHS(dofs_2) = RHS(dofs_2) + flux_term(:, 2);
+	    % second term
+	    ux = [UL, UR] * dN_dx';
+	    visc = (A ^ 2) * ux;
+	    visc_term = 0.5 * dt * (visc * dN_dx) * Jac_elem * wt;
+	    RHS(dofs_1) = RHS(dofs_1) - visc_term(:, 1);
+	    RHS(dofs_2) = RHS(dofs_2) - visc_term(:, 2);
+	end
+    end
+    
+    delta_U = M_lumped \ RHS;
+    U = U + dt * reshape(delta_U, 3, n_nodes);
+    U(:, 1) = U_L; U(:, end) = U_R;
+    
+    if any(~isfinite(U(:)))
+	fprintf('NaN/Inf detected at step %d, time %.6f\n', step, t);
+	break;
+    end
+    
+    % time update
+    t = t + dt;
+    step = step + 1;
+    fprintf('Step %d: Time = %.4f, dt = %.6f\n', step, t, dt);
+end
+
+plot_results(x, U, gamma);
+
+\end{lstlisting}
+The subroutines $calculate\_flux\_jacobian$ and $plot\_results$ are as follows:
+\begin{lstlisting}[frame=single, numbers=left, style=Matlab-editor]
+function [F, A] = calculate_flux_jacobian(U, gamma)
+    F = zeros(3, 1);
+    A = zeros(3, 3);
+
+    q1 = max(U(1, 1), 1e-10); % rho
+    q2 = U(2, 1); % momentum ,rho u
+    q3 = U(3, 1); % energy, rho e
+
+    u = q2 / q1;
+    p = (gamma - 1) * (q3 - 0.5 * q2 * u);
+    H = (q3 + p) / q1;
+
+    F = [q2; q2 * u + p; (q3 + p) * u];
+    A = [0, 1, 0; ...
+	    0.5 * (gamma - 3) * u ^ 2, (3 - gamma) * u, gamma - 1; ...
+	    u * (0.5 * (gamma - 1) * u ^ 2 - H), H - (gamma - 1) * u ^ 2, gamma * u];
+end
+
+%% Plot results
+function plot_results(x, U, gamma)
+    rho = U(1, :);
+    u = U(2, :) ./ rho;
+    E = U(3, :);
+    p = (gamma - 1) * (E - 0.5 * rho .* u .^ 2);
+
+    f1 = figure();
+    f2 = figure();
+    f3 = figure();
+    f4 = figure();
+
+    figure(f1);
+    % subplot(2, 2, 1);
+    plot(x, rho, 'k-', 'LineWidth', 2);
+    title('Density');
+    xlabel('x'); ylabel('\rho');
+    grid on; ylim([0, 1.2]);
+
+    figure(f2);
+    % subplot(2, 2, 2);
+    plot(x, u, 'k-', 'LineWidth', 2);
+    title('Velocity');
+    xlabel('x'); ylabel('u');
+    grid on;
+
+    figure(f3);
+    % subplot(2, 2, 3);
+    plot(x, p, 'k-', 'LineWidth', 2);
+    title('Pressure');
+    xlabel('x'); ylabel('p');
+    grid on; ylim([0, 1.2]);
+
+    figure(f4);
+    % subplot(2, 2, 4);
+    plot(x, E, 'k-', 'LineWidth', 2);
+    title('Total Energy');
+    xlabel('x'); ylabel('E');
+    grid on;
+
+    % sgtitle('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
+end
+\end{lstlisting}
+For t = 0.2s the following plot is observed. From the plot, oscillations can be seen present. Thus a stabilization method like SUPG is added to smooth the solution further.
+\begin{figure}[!h]
+    \captionsetup[subfigure]{justification=centering}
+    \centering
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{1d_euler_rho_tg.jpg}
+	\caption{Density plot against the length of the domain for t = 0.2s and 100 elements}
+	\label{fig-rho-tg}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{1d_euler_vel_tg.jpg}
+	\caption{Veloctiy plot against the length of the domain for t = 0.2s and 100 elements}
+	\label{fig-vel-tg}
+    \end{subfigure}
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{1d_euler_pres_tg.jpg}
+	\caption{Pressure plot against the length of the domain for t = 0.2s and 100 elements}
+	\label{fig-pres-tg}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[!h]{0.45\textwidth}
+	\includegraphics[width=\textwidth]{1d_euler_energy_tg.jpg}
+	\caption{Total Energy plot against the length of the domain for t = 0.2s and 100 elements}
+	\label{fig-ene-tg}
+    \end{subfigure}
+    \caption{Taylor-Galerkin scheme for the 1D Euler equations}
+\end{figure}
+\subsection{Backward Euler scheme}
+The backward Euler scheme is an ODE solving technique that utilizes backward differencing, hence backward Euler method, and shifts the solution forward by one time step. Simply put,
+\begin{equation}
+    \begin{gathered}
+	\frac{\dd y}{\dd t} = f \left( t_n, y_n \right) \\
+	\frac{y^{n+1} - y^n}{\Delta t} = f \left( t_n, y_n \right) 
+    \end{gathered}
+    \label{bem}
+\end{equation}
+Applying it to the 1D Euler equations, we get,
+\begin{equation}
+    \begin{gathered}
+	\frac {U^{n+1} - U^n} {\Delta t} + A(U^n) \frac {\partial U^{n+1}} { \partial x} = 0\\
+	\label{bem-1}
+    \end{gathered}
+\end{equation}
+Using Galerkin approximation for equation \ref{bem-1}
+\begin{equation}
+    \begin{gathered}
+	\frac{1}{\Delta t} \int N_a \dd x\ U^{n+1} - \int N_a \dd x\ U^n = - A(U^n) \int N_a  \frac {\partial N_b} { \partial x} \dd x\ U^{n+1} \\
+    \end{gathered}
+\end{equation}
+Rearranging, 
+\begin{equation}
+    \begin{gathered}
+	\left( \int N_a + \Delta t N_a A(U^n) \frac {\partial N_b} { \partial x} \dd x \right) U^{n+1} =  \int N_a \dd x\ U^n \\ 
+	\left( \frac{1}{\Delta t} M + K_{stiffness} \right) U^{n+1} = \left( \frac{1}{\Delta t} M \right) U^n  
+    \end{gathered}
+\end{equation}
 \end{document}

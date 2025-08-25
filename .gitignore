@@ -21,3 +21,4 @@ eulerEqs/euler_test.m
 eulerEqs/test_supg.m
 eulerEqs/*.asv
 tex/nvim-dotfiles/
+oneD_cdrppv2.m

@@ -31,7 +31,6 @@ tau = (1/tau_sugn1^r + 1/tau_sugn2^r) ^ (-1/r);
 % g = 4; % gamma from spectral paper
 % k = (1/Jac(1, 1))^g * (1/Jac(end,end))^g;
 % k = 1;
-
 % tau = k * tau_ij * eye(4);
 
 end

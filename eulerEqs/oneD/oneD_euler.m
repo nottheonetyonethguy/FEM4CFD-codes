@@ -19,9 +19,10 @@ rho_R = 0.125; u_R = 0.0; p_R = 0.1;
 x = linspace(x_left, x_right, n_nodes);
 U = zeros(3, n_nodes);
 U_old = U;
+
 % initial conditions
 for i = 1:n_nodes
-		
+	
 	if x(i) <= x_interface
 		rho = rho_L; u_gp = u_L; p = p_L;
 	else
@@ -166,31 +167,37 @@ E = U(3, :);
 p = (gamma - 1) * (E - 0.5 * rho .* u .^ 2);
 
 f1 = figure();
+f2 = figure();
+f3 = figure();
+f4 = figure();
 
 figure(f1);
-subplot(2, 2, 1);
+% subplot(2, 2, 1);
 plot(x, rho, 'k-', 'LineWidth', 2);
 title('Density');
 xlabel('x'); ylabel('\rho');
 grid on; ylim([0, 1.2]);
 
-subplot(2, 2, 2);
+figure(f2);
+% subplot(2, 2, 2);
 plot(x, u, 'k-', 'LineWidth', 2);
 title('Velocity');
 xlabel('x'); ylabel('u');
 grid on;
 
-subplot(2, 2, 3);
+figure(f3);
+% subplot(2, 2, 3);
 plot(x, p, 'k-', 'LineWidth', 2);
 title('Pressure');
 xlabel('x'); ylabel('p');
 grid on; ylim([0, 1.2]);
 
-subplot(2, 2, 4);
+figure(f4);
+% subplot(2, 2, 4);
 plot(x, E, 'k-', 'LineWidth', 2);
 title('Total Energy');
 xlabel('x'); ylabel('E');
 grid on;
 
-sgtitle('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
+% sgtitle('Riemann Shock Tube Solution (Taylor-Galerkin FEM)');
 end

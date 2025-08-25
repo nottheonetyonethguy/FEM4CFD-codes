@@ -67,7 +67,8 @@ for gp = 1:nGP
 	end
 	
 	tau = calculate_tau_supg(U_gp, gamma, dt, dNdx, dNdy, Jac);
-	del = calculateDelShock(U_gp, gamma,dNdx, dNdy); del = 0;
+	del = calculateDelShock(U_gp, gamma,dNdx, dNdy); 
+    % del = 0;
 	% tau = 1e-5;
 	% tau = 0;
 	[F1, F2, A1, A2] = calculateFluxJacobians(U_gp, gamma);
