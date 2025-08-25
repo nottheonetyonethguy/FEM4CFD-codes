@@ -439,10 +439,12 @@ end
 \end{figure}
 This is the subroutine for the SUPG implementation. Similar to the Petrov-Galerkin method, certain variables in the same manner must be initialized before the iteration and the element loop. As seen in Figure \ref{pe_10_da_10_1_0_supg}, the solution to the ADR equation in production regime (s $>$ 1), and even with Pe $>$ 1, the solution is dissipated from its Galerkin approximation solution. The linear stabilization term introduces diffusion and helps stabilize the solution in higher Peclet number cases, but oscillations and sharp gradients still persist. The case in Figure \ref{pe_10_da_10_1_0_supg} is with Pe = 10 and Da = 10, where Da is the Damkohler number and is responsible for the production (s $>$ 0) or destruction (s $<$ 0) regime. The cases from this point onward will include the Da number as part of the problem.
 \subsection{Postivity Preserving Variational Method}
-To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving solmethod is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. \\
+To reduce the presence of sharp gradients and oscillations in the solution due to discontinuities, a positivity preserving method is introduced. The PPV method adds a non-linear stabilization term to the weak form of the Galerkin approximation, which is added only when the gradient of the solution is steeper than a certain desired value. It makes sure the solution follows the natural condition and remains within the bounds of the actual solution of the differential equation. \\
 A positivity condition is enforced in the element stiffness matrix i.e.,
    \begin{equation}
        k_{ij} = k_{ji} = max(0, a_{ij}, a_{ji})
  \end{equation}
- where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix.
+ where, $a_{ij}$ is an element of the positivity preserving matrix A and $k_{ij}$ is an element of the stiffness matrix. Even though stabilization methods like SUPG and PG reduce the oscillations in the solution, there still exist overshoots and undershoots near regions of high gradient, becauseneither method is monotone or positivity preserving. Natural physical solutions must follow the sign of their neighbour while excluding oscillations. 
+
+
 \end{document}

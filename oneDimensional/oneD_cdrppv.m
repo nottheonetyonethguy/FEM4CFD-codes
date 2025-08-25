@@ -8,7 +8,7 @@ c = 1;
 f = 0; % changes
 
 nelem = 10;
-
+ZZZZZZZZ
 L = xR - xL;
 he = L / nelem;
 
@@ -127,7 +127,7 @@ plot(node_coords, soln_full, 'bo-', 'LineWidth', 2, 'DisplayName', 'Galerkin');
 hold on;
 % plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
 plot(node_coords, soln_full_supg, 'r *-', 'LineWidth', 2, 'DisplayName', 'SUPG');
-% plot(node_coords, soln_full_ppv, 'k-', 'LineWidth', 2, 'DisplayName', 'Discontinuity Correction');
+plot(node_coords, soln_full_ppv, 'k-', 'LineWidth', 2, 'DisplayName', 'Discontinuity Correction');
 plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates, x/L")
 ylabel("Values, \phi")

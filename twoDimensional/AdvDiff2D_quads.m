@@ -5,12 +5,12 @@ clc;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % fname = "QuadMesh_mesh2_Structured.inp";
-% fname = "data0.inp";
+fname = "data0.inp";
 % fname = "data30.inp";
 % fname = "data60.inp";
 % fname = "data45.inp";
 % fname = "data90.inp";
-fname = "data_p2.inp";
+% fname = "data_p2.inp";
 
 [ndim, ndof, nnode, nelem, npelem, totaldof, node_coords, elem_node_conn, matData, elemData, elem_dof_conn, dofs_fixed, dofs_free, soln_applied, soln_full, force_applied] = processfile_FEM(fname);
 

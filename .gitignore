@@ -20,3 +20,4 @@ eulerEqs/test.m
 eulerEqs/euler_test.m
 eulerEqs/test_supg.m
 eulerEqs/*.asv
+tex/nvim-dotfiles/

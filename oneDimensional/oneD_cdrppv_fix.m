@@ -14,8 +14,8 @@ L = xR - xL;
 he = L / nelem;
 
 % boundary conditions
-uL = 0.0;
-uR = 1.0;
+uL = 1.0;
+uR = 0.0;
 
 Pe = 10.0;
 Da = 10.0; % s * he /c
@@ -51,23 +51,17 @@ soln_full_supg = zeros(totaldof, 1);
 soln_full_ppv = zeros(totaldof, 1);
 soln_full1 = zeros(totaldof, 1);
 
-counter = 1;
 
 %% Solution
 for iter = 1:9
 	
 	Kglobal_g = zeros(totaldof, totaldof);
-	Kglobal_pg = zeros(totaldof, totaldof);
 	Kglobal_supg = zeros(totaldof, totaldof);
 	% Kglobal_ppv = zeros(totaldof, totaldof);
 	
 	Fglobal_g = zeros(totaldof, 1);
-	Fglobal_pg = zeros(totaldof, 1);
 	Fglobal_supg = zeros(totaldof, 1);
 	% Fglobal_ppv = zeros(totaldof, 1);
-	
-	Kglobal1 = zeros(totaldof, totaldof);
-	Fglobal1 = zeros(totaldof, 1);
 	
 	for elnum = 1:nelem
 		elem_dofs = elem_dof_conn(elnum, :);
@@ -81,41 +75,25 @@ for iter = 1:9
 		[Klocal_supg, Flocal_supg] = supg(c, mu, he, alpha, tau, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal);
 		Kglobal_supg(elem_dofs, elem_dofs) = Kglobal_supg(elem_dofs, elem_dofs) + Klocal_supg;
 		Fglobal_supg(elem_dofs, 1) = Fglobal_supg(elem_dofs, 1) + Flocal_supg; % supg approximation
-		
-		% Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
-		% Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
-		% counter
-		% anss = Kglobal_supg \ Fglobal_supg
-		% anss1 = Klocal_supg \ Flocal_supg
-		% anss(isnan(anss)) = 0;
-		% norm(anss)
-		
-		% [Klocal, Flocal] = ppv(c, mu, he, alpha, tau, s, nGP, gpts, gwts, uL, uR, L, elem_dofs, node_coords, soln_full_ppv, Klocal, Flocal);
-		% Kglobal_ppv(elem_dofs, elem_dofs) = Kglobal_ppv(elem_dofs, elem_dofs) + Klocal;
-		% Fglobal_ppv(elem_dofs, 1) = Fglobal_ppv(elem_dofs, 1) + Flocal; % ppv approximation
 	end
 	
 	Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
 	Fglobal_supg = forceVector(Kglobal_supg, Fglobal_supg, iter, uL, uR, totaldof);
-	% Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
 	
-	rNorm = norm(Fglobal_supg);
+	rNorm = norm(Fglobal_g);
 	
-	if (rNorm < 1.0e-12)
+	if (rNorm < 1.0e-10)
 		break;
 	end
 	
 	Kglobal_g = stiffnessMatrix(Kglobal_g, totaldof);
 	Kglobal_supg = stiffnessMatrix(Kglobal_supg, totaldof);
-	% Kglobal_ppv = stiffnessMatrix(Kglobal_ppv, totaldof);
 	
 	soln_incr = Kglobal_g \ Fglobal_g;
 	soln_incr_supg = Kglobal_supg \ Fglobal_supg;
-	% soln_incr_ppv = Kglobal_ppv \ Fglobal_ppv;
 	
 	soln_full = soln_full + soln_incr;
 	soln_full_supg = soln_full_supg + soln_incr_supg;
-	% soln_full_ppv = soln_full_ppv + soln_incr_ppv;
 	
 end
 
@@ -145,7 +123,7 @@ for iter = 1:20
 	
 	Fglobal_g = forceVector(Kglobal_g, Fglobal_g, iter, uL, uR, totaldof);
 	Fglobal_ppv = forceVector(Kglobal_ppv, Fglobal_ppv, iter, uL, uR, totaldof);
-	rNorm = norm(Fglobal_g);
+	rNorm = norm(Fglobal_ppv);
 	
 	if (rNorm < 1.0e-10)
 		break;
@@ -166,22 +144,13 @@ figure(f1);
 plot(node_coords, soln_full, 'bo-', 'DisplayName', 'Galerkin');
 hold on;
 % plot(node_coords, soln_full_pg, 'k--', 'DisplayName', 'Petrov-Galerkin');
-plot(node_coords, soln_full_supg, 'r *-', 'LineWidth', 2, 'DisplayName', 'SUPG');
-% plot(node_coords, soln_full_ppv, 'k-', 'LineWidth', 2, 'DisplayName', 'Discontinuity Correction');
-plot(node_coords, u_analytical', 'k-', 'LineWidth', 2, 'DisplayName', 'Analytical Soliution')
+plot(node_coords, soln_full_supg, 'r *-',  'DisplayName', 'SUPG');
+plot(node_coords, soln_full_ppv, 'k-',  'DisplayName', 'Discontinuity Correction');
+plot(node_coords, u_analytical', 'k--',  'DisplayName', 'Analytical Soliution')
 xlabel("Node Coordinates, x/L")
 ylabel("Values, \phi")
 title("1D steady state advection diffusion equation")
 legend('Location', 'best');
-
-% figure(f2);
-% plot(node_coords, soln_full1, 'ko-', 'DisplayName', 'Function Solution');
-% hold on;
-% plot(node_coords, soln_full_ppv, 'r--', 'DisplayName', 'Discontinuity Correction');
-% xlabel("Node Coordinates")
-% ylabel("Values")
-% title("1D Steady State Advection with functions")
-% legend('Location', 'best');
 
 function [Klocal_g, Flocal_g] = galerkinApproximation(a, mu, h, s, nGP, gpts, gwts, elem_dofs, node_coords, soln_full, Klocal, Flocal)
 Klocal_g = zeros(2, 2);
@@ -341,7 +310,7 @@ for gp = 1:nGP
 	%     chi = 2 / ((abs(s) * h) + (2 * abs(a)));
 	%     kadd = max((abs(a - tau * a * s + tau * a * abs(s)) * h / 2) ...
 	%         - (mu + tau * a ^ 2) + (s + tau * s * abs(s)) * h ^ 2/6, 0);
-	%
+    % 
 	%     Klocal = Klocal + chi * res_ratio * kadd * (dNdx' * dNdx) * Jac * wt;
 	%     Flocal = Flocal - res_ratio * chi * kadd * dNdx' * du * Jac * wt;
 	% end
