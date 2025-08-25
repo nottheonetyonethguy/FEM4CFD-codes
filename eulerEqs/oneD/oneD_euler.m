@@ -19,6 +19,7 @@ rho_R = 0.125; u_R = 0.0; p_R = 0.1;
 x = linspace(x_left, x_right, n_nodes);
 U = zeros(3, n_nodes);
 U_old = U;
+
 % initial conditions
 for i = 1:n_nodes
 	
